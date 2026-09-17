@@ -7,6 +7,7 @@ import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
 import 'package:ddai_lucky_defense/game/record_store.dart';
 import 'package:ddai_lucky_defense/main.dart';
 import 'package:ddai_lucky_defense/ui/hud_bar.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,17 +26,15 @@ Future<LuckyDefenseGame> _boot(
 
   late LuckyDefenseGame game;
   await tester.pumpWidget(
-    MaterialApp(
-      home: GameScreen(
-        gameFactory: () {
-          game = LuckyDefenseGame(
-            state: GameState(),
-            random: math.Random(seed),
-            records: records ?? MemoryRecordStore(),
-          );
-          return game;
-        },
-      ),
+    LuckyDefenseApp(
+      gameFactory: () {
+        game = LuckyDefenseGame(
+          state: GameState(),
+          random: math.Random(seed),
+          records: records ?? MemoryRecordStore(),
+        );
+        return game;
+      },
     ),
   );
   await tester.pump();
@@ -381,6 +380,46 @@ void main() {
     }
     expect(find.text('시작하기'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('하단 강화 메뉴를 마우스로 끌어 좌우로 넘길 수 있다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    await tester.pump();
+
+    // 하단 강화 메뉴는 화면 폭보다 넓은 가로 목록이다.
+    final row = find.byType(ListView);
+    expect(row, findsOneWidget);
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(of: row, matching: find.byType(Scrollable)),
+        )
+        .position;
+    expect(position.pixels, 0);
+    expect(position.maxScrollExtent, greaterThan(0));
+
+    // 마우스로 왼쪽으로 끌면 뒤쪽 항목이 보인다.
+    await tester.drag(
+      row,
+      const Offset(-120, 0),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    final afterLeft = position.pixels;
+    expect(afterLeft, greaterThan(0));
+
+    // 다시 오른쪽으로 끌면 되돌아온다.
+    // (탄성 물리라 시작점을 넘어 음수까지 갈 수 있으므로 값만 줄면 된다.)
+    await tester.drag(row, const Offset(200, 0), kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    expect(position.pixels, lessThan(afterLeft));
+
+    // Flame 티커가 매 프레임을 요청하므로 pumpAndSettle 은 끝나지 않는다.
+    // 탄성 애니메이션이 가라앉을 만큼만 프레임을 돌린다.
+    for (var i = 0; i < 90; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(position.pixels, 0);
   });
 
   testWidgets('넓은 화면에서는 폰 너비로 가운데 세운다', (tester) async {

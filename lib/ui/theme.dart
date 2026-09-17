@@ -1,4 +1,17 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+
+/// 마우스로도 스크롤 영역을 끌 수 있게 한다.
+///
+/// Flutter 기본값(`MaterialScrollBehavior.dragDevices`)은 터치·스타일러스만
+/// 드래그로 인정한다. 그래서 웹·데스크톱에서는 하단 강화 메뉴 같은 가로 목록을
+/// 마우스로 잡아끌어도 움직이지 않고, 휠이나 스크롤바를 써야 한다.
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => PointerDeviceKind.values.toSet();
+}
 
 class GameColors {
   GameColors._();

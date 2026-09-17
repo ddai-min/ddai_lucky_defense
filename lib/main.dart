@@ -20,13 +20,17 @@ void main() {
 }
 
 class LuckyDefenseApp extends StatelessWidget {
-  const LuckyDefenseApp({super.key});
+  const LuckyDefenseApp({super.key, this.gameFactory});
+
+  /// 테스트에서 시드 고정된 게임을 주입하기 위한 훅.
+  final LuckyDefenseGame Function()? gameFactory;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '운빨 디펜스',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const AppScrollBehavior(),
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
@@ -36,7 +40,7 @@ class LuckyDefenseApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const GameScreen(),
+      home: GameScreen(gameFactory: gameFactory),
     );
   }
 }
