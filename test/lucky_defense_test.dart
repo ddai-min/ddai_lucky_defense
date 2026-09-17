@@ -2,11 +2,13 @@ import 'dart:math' as math;
 
 import 'package:ddai_lucky_defense/game/data/balance.dart';
 import 'package:ddai_lucky_defense/game/data/rarity.dart';
+import 'package:ddai_lucky_defense/game/field_layout.dart';
 import 'package:ddai_lucky_defense/game/game_state.dart';
 import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
 import 'package:ddai_lucky_defense/game/record_store.dart';
 import 'package:ddai_lucky_defense/main.dart';
 import 'package:ddai_lucky_defense/ui/hud_bar.dart';
+import 'package:flame/components.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -380,6 +382,111 @@ void main() {
     }
     expect(find.text('시작하기'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  test('슬롯 격자는 화면 크기와 무관하게 한 줄 6개로 고정된다', () {
+    const sizes = [
+      [320.0, 480.0], // 작은 폰
+      [390.0, 520.0], // 일반 폰
+      [430.0, 700.0], // 큰 폰
+      [480.0, 900.0], // 웹 세로로 긴 창
+      [480.0, 360.0], // 웹 가로로 납작한 창(확대했을 때)
+      [1200.0, 800.0], // 제한 전 원본 크기
+    ];
+
+    for (final wh in sizes) {
+      final layout = FieldLayout(Vector2(wh[0], wh[1]));
+      final reason = '${wh[0]}x${wh[1]}';
+
+      expect(layout.slotCount, FieldLayout.maxSlots, reason: reason);
+      expect(layout.slotCount, 18, reason: reason);
+
+      // 같은 y 를 공유하는 슬롯이 정확히 6개씩, 3줄이다.
+      final rows = <double, int>{};
+      for (final c in layout.slotCenters) {
+        rows.update(c.y, (v) => v + 1, ifAbsent: () => 1);
+      }
+      expect(rows.length, 3, reason: reason);
+      expect(rows.values.every((v) => v == 6), isTrue, reason: reason);
+
+      // 칸끼리 겹치지 않고 화면 안에 들어간다.
+      final step = layout.slotCenters[1].x - layout.slotCenters[0].x;
+      expect(step, greaterThan(layout.slotSize), reason: reason);
+      expect(
+        layout.slotCenters.first.x - layout.slotSize / 2,
+        greaterThan(0),
+        reason: reason,
+      );
+      expect(
+        layout.slotCenters.last.x + layout.slotSize / 2,
+        lessThan(wh[0]),
+        reason: reason,
+      );
+    }
+  });
+
+  testWidgets('강화 메뉴 끝에 넘김 화살표가 나타나고 눌러서 넘긴다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    await tester.pump();
+
+    // 처음에는 오른쪽으로만 넘길 수 있다.
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    final right = tester.widget<AnimatedOpacity>(
+      find.ancestor(
+        of: find.byIcon(Icons.chevron_right),
+        matching: find.byType(AnimatedOpacity),
+      ),
+    );
+    final left = tester.widget<AnimatedOpacity>(
+      find.ancestor(
+        of: find.byIcon(Icons.chevron_left),
+        matching: find.byType(AnimatedOpacity),
+      ),
+    );
+    expect(right.opacity, 1);
+    expect(left.opacity, 0);
+
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .position;
+
+    // 오른쪽 화살표를 누르면 넘어간다.
+    await tester.tap(find.byIcon(Icons.chevron_right));
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(position.pixels, greaterThan(0));
+
+    // 넘어간 뒤에는 왼쪽 화살표도 보인다.
+    final leftAfter = tester.widget<AnimatedOpacity>(
+      find.ancestor(
+        of: find.byIcon(Icons.chevron_left),
+        matching: find.byType(AnimatedOpacity),
+      ),
+    );
+    expect(leftAfter.opacity, 1);
+
+    // 끝까지 가면 오른쪽 화살표가 사라진다.
+    for (var n = 0; n < 6; n++) {
+      await tester.tap(find.byIcon(Icons.chevron_right), warnIfMissed: false);
+      for (var i = 0; i < 25; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+    }
+    expect(position.pixels, position.maxScrollExtent);
+    final rightEnd = tester.widget<AnimatedOpacity>(
+      find.ancestor(
+        of: find.byIcon(Icons.chevron_right),
+        matching: find.byType(AnimatedOpacity),
+      ),
+    );
+    expect(rightEnd.opacity, 0);
   });
 
   testWidgets('하단 강화 메뉴를 마우스로 끌어 좌우로 넘길 수 있다', (tester) async {

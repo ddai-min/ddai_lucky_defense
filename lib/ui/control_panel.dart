@@ -126,72 +126,226 @@ class _ActionRow extends StatelessWidget {
   }
 }
 
-class _UpgradeRow extends StatelessWidget {
+class _UpgradeRow extends StatefulWidget {
   const _UpgradeRow({required this.game});
 
   final LuckyDefenseGame game;
 
   @override
+  State<_UpgradeRow> createState() => _UpgradeRowState();
+}
+
+class _UpgradeRowState extends State<_UpgradeRow> {
+  final ScrollController _controller = ScrollController();
+  bool _canScrollLeft = false;
+  bool _canScrollRight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_syncArrows);
+    // 첫 레이아웃이 끝나야 스크롤 범위를 알 수 있다.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncArrows());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _syncArrows() {
+    if (!mounted || !_controller.hasClients) {
+      return;
+    }
+    final position = _controller.position;
+    final left = position.pixels > 1;
+    final right = position.pixels < position.maxScrollExtent - 1;
+    if (left == _canScrollLeft && right == _canScrollRight) {
+      return;
+    }
+    setState(() {
+      _canScrollLeft = left;
+      _canScrollRight = right;
+    });
+  }
+
+  void _nudge(int direction) {
+    if (!_controller.hasClients) {
+      return;
+    }
+    final position = _controller.position;
+    final target = (position.pixels + direction * 150).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final state = game.state;
+    final state = widget.game.state;
+    final game = widget.game;
     return SizedBox(
       height: 46,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        children: [
-          _UpgradeButton(
-            icon: '⚔️',
-            title: '공격력',
-            level: state.atkLevel,
-            effect: '×${state.damageMultiplier.toStringAsFixed(2)}',
-            cost: '${formatNumber(state.atkCost)} G',
-            color: GameColors.life,
-            enabled: state.gold >= state.atkCost,
-            onTap: game.upgradeAttack,
+      child: NotificationListener<ScrollMetricsNotification>(
+        // 창 크기·확대 배율이 바뀌면 스크롤 범위도 달라진다.
+        // 레이아웃 도중에 오는 알림이라 프레임이 끝난 뒤에 반영한다.
+        onNotification: (_) {
+          runAfterFrame(_syncArrows);
+          return false;
+        },
+        child: Stack(
+          children: [
+            ListView(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              children: [
+                _UpgradeButton(
+                  icon: '⚔️',
+                  title: '공격력',
+                  level: state.atkLevel,
+                  effect: '×${state.damageMultiplier.toStringAsFixed(2)}',
+                  cost: '${formatNumber(state.atkCost)} G',
+                  color: GameColors.life,
+                  enabled: state.gold >= state.atkCost,
+                  onTap: game.upgradeAttack,
+                ),
+                _UpgradeButton(
+                  icon: '⚡',
+                  title: '공격속도',
+                  level: state.spdLevel,
+                  effect: '×${state.attackSpeedMultiplier.toStringAsFixed(2)}',
+                  cost: '${formatNumber(state.spdCost)} G',
+                  color: GameColors.accent,
+                  enabled: state.gold >= state.spdCost,
+                  onTap: game.upgradeSpeed,
+                ),
+                _UpgradeButton(
+                  icon: '💰',
+                  title: '골드획득',
+                  level: state.goldLevel,
+                  effect: '×${state.goldMultiplier.toStringAsFixed(2)}',
+                  cost: '${formatNumber(state.goldCost)} G',
+                  color: GameColors.gold,
+                  enabled: state.gold >= state.goldCost,
+                  onTap: game.upgradeGold,
+                ),
+                _UpgradeButton(
+                  icon: '🍀',
+                  title: '행운',
+                  level: state.luckLevel,
+                  effect: state.luckMaxed ? 'MAX' : '상위등급↑',
+                  cost: state.luckMaxed ? '-' : '${state.luckCost} 💎',
+                  color: GameColors.green,
+                  enabled: !state.luckMaxed && state.gems >= state.luckCost,
+                  onTap: game.upgradeLuck,
+                ),
+                _UpgradeButton(
+                  icon: '❤️',
+                  title: '라이프',
+                  level: state.lives,
+                  effect: '+1',
+                  cost: '${Balance.reviveGems} 💎',
+                  color: GameColors.gem,
+                  enabled: state.gems >= Balance.reviveGems,
+                  onTap: game.buyLife,
+                  levelPrefix: '보유 ',
+                ),
+              ],
+            ),
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: _EdgeArrow(
+                visible: _canScrollLeft,
+                pointsLeft: true,
+                onTap: () => _nudge(-1),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: _EdgeArrow(
+                visible: _canScrollRight,
+                pointsLeft: false,
+                onTap: () => _nudge(1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 가로 목록의 양 끝에 겹쳐 두는 넘김 화살표.
+///
+/// 아래 내용이 배경색으로 흐려지도록 그라데이션을 깔아, 버튼을 가리는 게 아니라
+/// «더 있다» 는 표시로 보이게 한다. 더 넘길 곳이 없으면 사라진다.
+class _EdgeArrow extends StatelessWidget {
+  const _EdgeArrow({
+    required this.visible,
+    required this.pointsLeft,
+    required this.onTap,
+  });
+
+  final bool visible;
+  final bool pointsLeft;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 160),
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            width: 38,
+            alignment: pointsLeft
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: pointsLeft
+                    ? Alignment.centerLeft
+                    : Alignment.centerRight,
+                end: pointsLeft ? Alignment.centerRight : Alignment.centerLeft,
+                colors: [
+                  GameColors.panel,
+                  GameColors.panel.withValues(alpha: 0),
+                ],
+                stops: const [0.5, 1],
+              ),
+            ),
+            child: Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: GameColors.panelSoft,
+                shape: BoxShape.circle,
+                border: Border.all(color: GameColors.border),
+              ),
+              child: Icon(
+                pointsLeft ? Icons.chevron_left : Icons.chevron_right,
+                size: 17,
+                color: GameColors.text,
+              ),
+            ),
           ),
-          _UpgradeButton(
-            icon: '⚡',
-            title: '공격속도',
-            level: state.spdLevel,
-            effect: '×${state.attackSpeedMultiplier.toStringAsFixed(2)}',
-            cost: '${formatNumber(state.spdCost)} G',
-            color: GameColors.accent,
-            enabled: state.gold >= state.spdCost,
-            onTap: game.upgradeSpeed,
-          ),
-          _UpgradeButton(
-            icon: '💰',
-            title: '골드획득',
-            level: state.goldLevel,
-            effect: '×${state.goldMultiplier.toStringAsFixed(2)}',
-            cost: '${formatNumber(state.goldCost)} G',
-            color: GameColors.gold,
-            enabled: state.gold >= state.goldCost,
-            onTap: game.upgradeGold,
-          ),
-          _UpgradeButton(
-            icon: '🍀',
-            title: '행운',
-            level: state.luckLevel,
-            effect: state.luckMaxed ? 'MAX' : '상위등급↑',
-            cost: state.luckMaxed ? '-' : '${state.luckCost} 💎',
-            color: GameColors.green,
-            enabled: !state.luckMaxed && state.gems >= state.luckCost,
-            onTap: game.upgradeLuck,
-          ),
-          _UpgradeButton(
-            icon: '❤️',
-            title: '라이프',
-            level: state.lives,
-            effect: '+1',
-            cost: '${Balance.reviveGems} 💎',
-            color: GameColors.gem,
-            enabled: state.gems >= Balance.reviveGems,
-            onTap: game.buyLife,
-            levelPrefix: '보유 ',
-          ),
-        ],
+        ),
       ),
     );
   }
