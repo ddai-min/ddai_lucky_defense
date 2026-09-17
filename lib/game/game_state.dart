@@ -25,6 +25,13 @@ class GameState extends ChangeNotifier {
   int luckLevel = 0;
 
   bool autoMerge = false;
+
+  /// 자리가 없을 때 가장 낮은 등급을 자동으로 팔지 여부.
+  bool autoSell = true;
+
+  /// 일시정지. 켜지면 게임 루프가 통째로 멈춘다.
+  bool paused = false;
+
   int speedMultiplier = 1;
   GamePhase phase = GamePhase.ready;
 
@@ -69,7 +76,7 @@ class GameState extends ChangeNotifier {
   bool get slotsFull => unitCount >= slotCount && slotCount > 0;
 
   /// 소환을 누르면 자동 판매가 함께 일어나는 상태인지.
-  bool get willAutoSell => slotsFull && autoSellName != null;
+  bool get willAutoSell => autoSell && slotsFull && autoSellName != null;
 
   /// 자동 판매까지 감안한 실제 소환 비용.
   ///
@@ -114,6 +121,8 @@ class GameState extends ChangeNotifier {
     goldLevel = 0;
     luckLevel = 0;
     autoMerge = false;
+    autoSell = true;
+    paused = false;
     speedMultiplier = 1;
     phase = GamePhase.playing;
     started = true;

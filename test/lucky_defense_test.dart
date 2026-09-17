@@ -15,6 +15,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// 화살표 아이콘을 감싼 가장 가까운 AnimatedOpacity 의 불투명도.
+///
+/// 조작 패널 전체를 흐리는 AnimatedOpacity 도 조상에 있으므로 첫 번째만 본다.
+double _arrowOpacity(WidgetTester tester, IconData icon) {
+  return tester
+      .widget<AnimatedOpacity>(
+        find
+            .ancestor(
+              of: find.byIcon(icon),
+              matching: find.byType(AnimatedOpacity),
+            )
+            .first,
+      )
+      .opacity;
+}
+
 /// 실제 화면 구조 그대로, 시드를 고정한 게임을 띄운다.
 Future<LuckyDefenseGame> _boot(
   WidgetTester tester, {
@@ -135,6 +151,102 @@ void main() {
     }
     await tester.pump();
     expect(game.units.length, game.layout.slotCount);
+  });
+
+  testWidgets('자동 판매를 끄면 자리가 없을 때 소환이 막힌다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    final state = game.state;
+    state.gold = 1 << 24;
+
+    for (var i = 0; i < game.layout.slotCount; i++) {
+      game.summon();
+    }
+    await tester.pump();
+    expect(state.willAutoSell, isTrue);
+
+    // 토글을 끈다.
+    state.autoSell = false;
+    state.notify();
+    await tester.pump();
+
+    expect(state.willAutoSell, isFalse);
+    expect(state.canSummon, isFalse);
+    // 비용도 다시 «안 팔았을 때» 기준으로 돌아온다.
+    expect(state.effectiveSummonCost, state.summonCost);
+
+    final before = game.units.length;
+    expect(game.summon(), isFalse);
+    expect(game.highSummon(), isFalse);
+    await tester.pump();
+    expect(game.units.length, before);
+
+    // 다시 켜면 동작한다.
+    state.autoSell = true;
+    state.notify();
+    await tester.pump();
+    expect(state.canSummon, isTrue);
+    expect(game.summon(), isTrue);
+    await tester.pump();
+    expect(game.units.length, game.layout.slotCount);
+  });
+
+  testWidgets('자동 판매 토글이 조작 패널에 있고 합성 버튼은 없다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    await tester.pump();
+
+    expect(find.text('자동\n판매'), findsOneWidget);
+    expect(find.text('자동\n합성'), findsOneWidget);
+    // 아무 때나 눌러도 소용없던 전체 합성 버튼은 사라졌다.
+    expect(find.text('합성'), findsNothing);
+    expect(find.text('3개↑'), findsNothing);
+
+    expect(game.state.autoSell, isTrue);
+    await tester.tap(find.text('자동\n판매'));
+    await tester.pump();
+    expect(game.state.autoSell, isFalse);
+  });
+
+  testWidgets('일시정지 버튼을 누르면 게임이 멈추고 다시 누르면 이어진다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    await tester.pump();
+    final state = game.state;
+
+    // 첫 웨이브까지 진행시켜 움직이는 것이 있는 상태로 만든다.
+    for (var i = 0; i < 60 * 12; i++) {
+      game.update(1 / 60);
+    }
+    await tester.pump();
+    expect(game.enemies, isNotEmpty);
+
+    final waveBefore = state.waveCountdown;
+    final progressBefore = game.enemies.first.progress;
+
+    await tester.tap(find.byIcon(Icons.pause_rounded));
+    await tester.pump();
+    expect(state.paused, isTrue);
+    expect(find.text('일시정지'), findsOneWidget);
+
+    // 멈춘 동안에는 시간도 몬스터도 움직이지 않는다.
+    for (var i = 0; i < 60 * 5; i++) {
+      game.update(1 / 60);
+    }
+    expect(state.waveCountdown, waveBefore);
+    expect(game.enemies.first.progress, progressBefore);
+
+    // 다시 누르면 이어진다.
+    await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+    await tester.pump();
+    expect(state.paused, isFalse);
+    expect(find.text('일시정지'), findsNothing);
+
+    for (var i = 0; i < 60; i++) {
+      game.update(1 / 60);
+    }
+    expect(state.waveCountdown, lessThan(waveBefore));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('팔아도 골드가 모자라면 자동 판매하지 않는다', (tester) async {
@@ -560,20 +672,8 @@ void main() {
 
     // 처음에는 오른쪽으로만 넘길 수 있다.
     expect(find.byIcon(Icons.chevron_right), findsOneWidget);
-    final right = tester.widget<AnimatedOpacity>(
-      find.ancestor(
-        of: find.byIcon(Icons.chevron_right),
-        matching: find.byType(AnimatedOpacity),
-      ),
-    );
-    final left = tester.widget<AnimatedOpacity>(
-      find.ancestor(
-        of: find.byIcon(Icons.chevron_left),
-        matching: find.byType(AnimatedOpacity),
-      ),
-    );
-    expect(right.opacity, 1);
-    expect(left.opacity, 0);
+    expect(_arrowOpacity(tester, Icons.chevron_right), 1);
+    expect(_arrowOpacity(tester, Icons.chevron_left), 0);
 
     final position = tester
         .state<ScrollableState>(
@@ -592,13 +692,7 @@ void main() {
     expect(position.pixels, greaterThan(0));
 
     // 넘어간 뒤에는 왼쪽 화살표도 보인다.
-    final leftAfter = tester.widget<AnimatedOpacity>(
-      find.ancestor(
-        of: find.byIcon(Icons.chevron_left),
-        matching: find.byType(AnimatedOpacity),
-      ),
-    );
-    expect(leftAfter.opacity, 1);
+    expect(_arrowOpacity(tester, Icons.chevron_left), 1);
 
     // 끝까지 가면 오른쪽 화살표가 사라진다.
     for (var n = 0; n < 6; n++) {
@@ -608,13 +702,7 @@ void main() {
       }
     }
     expect(position.pixels, position.maxScrollExtent);
-    final rightEnd = tester.widget<AnimatedOpacity>(
-      find.ancestor(
-        of: find.byIcon(Icons.chevron_right),
-        matching: find.byType(AnimatedOpacity),
-      ),
-    );
-    expect(rightEnd.opacity, 0);
+    expect(_arrowOpacity(tester, Icons.chevron_right), 0);
   });
 
   testWidgets('하단 강화 메뉴를 마우스로 끌어 좌우로 넘길 수 있다', (tester) async {

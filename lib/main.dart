@@ -121,10 +121,35 @@ class _GameScreenState extends State<GameScreen> {
                                     bottom: 10,
                                     child: _Toast(state: state),
                                   ),
+                                  Positioned.fill(
+                                    child: AnimatedBuilder(
+                                      animation: state,
+                                      builder: (context, _) => state.paused
+                                          ? _PauseOverlay(game: game)
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 12,
+                                    bottom: 12,
+                                    child: _PauseButton(game: game),
+                                  ),
                                 ],
                               ),
                             ),
-                            ControlPanel(game: game),
+                            // 멈춰 있는 동안에는 조작 패널도 잠근다.
+                            AnimatedBuilder(
+                              animation: state,
+                              builder: (context, child) => IgnorePointer(
+                                ignoring: state.paused,
+                                child: AnimatedOpacity(
+                                  opacity: state.paused ? 0.45 : 1,
+                                  duration: const Duration(milliseconds: 160),
+                                  child: child,
+                                ),
+                              ),
+                              child: ControlPanel(game: game),
+                            ),
                           ],
                         ),
                         // 인트로/결과 화면은 HUD와 조작 패널까지 덮는다.
@@ -148,6 +173,104 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 게임 화면 우측 하단의 일시정지 버튼.
+class _PauseButton extends StatelessWidget {
+  const _PauseButton({required this.game});
+
+  final LuckyDefenseGame game;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = game.state;
+    return AnimatedBuilder(
+      animation: state,
+      builder: (context, _) {
+        final paused = state.paused;
+        return Semantics(
+          button: true,
+          label: paused ? '계속하기' : '일시정지',
+          child: GestureDetector(
+            onTap: game.togglePause,
+            child: Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: GameColors.panel.withValues(alpha: 0.92),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: paused ? GameColors.green : GameColors.border,
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: Icon(
+                paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                size: 23,
+                color: paused ? GameColors.green : GameColors.text,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 멈춘 동안 게임 화면을 덮는 안내. 아무 데나 누르면 계속된다.
+class _PauseOverlay extends StatelessWidget {
+  const _PauseOverlay({required this.game});
+
+  final LuckyDefenseGame game;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: game.togglePause,
+      behavior: HitTestBehavior.opaque,
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: 0.62),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.pause_circle_filled_rounded,
+                size: 52,
+                color: GameColors.text,
+              ),
+              SizedBox(height: 10),
+              Text(
+                '일시정지',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                '화면을 누르면 계속합니다',
+                style: TextStyle(
+                  color: GameColors.sub,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       ),

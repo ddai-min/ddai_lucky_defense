@@ -35,6 +35,9 @@ class ProjectileComponent extends PositionComponent {
 
   @override
   void update(double dt) {
+    if (game.state.paused) {
+      return;
+    }
     _life += dt;
     if (_life > 3) {
       removeFromParent();

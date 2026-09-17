@@ -170,6 +170,13 @@ class LuckyDefenseGame extends FlameGame {
   // ───────────────────────────── 루프 ─────────────────────────────
   @override
   void update(double dt) {
+    if (state.paused) {
+      // 시간만 멈춘다. dt 0 으로 한 번 돌려서 대기 중인 컴포넌트 추가·제거는
+      // 처리해 준다 — 아예 건너뛰면 마침 그 프레임에 죽은 몬스터가 화면에
+      // 그대로 남고, 멈춘 채로 붙은 컴포넌트는 아예 뜨지 않는다.
+      super.update(0);
+      return;
+    }
     final base = math.min(dt, 1 / 30);
     final steps = state.speedMultiplier.clamp(1, 3);
     for (var i = 0; i < steps; i++) {
@@ -594,6 +601,15 @@ class LuckyDefenseGame extends FlameGame {
     _hudDirty = true;
   }
 
+  /// 일시정지 토글.
+  void togglePause() {
+    if (!state.started || state.isGameOver) {
+      return;
+    }
+    state.paused = !state.paused;
+    state.notify();
+  }
+
   /// 인트로를 닫고 전투를 시작한다.
   void startGame() {
     state.started = true;
@@ -751,7 +767,7 @@ class LuckyDefenseGame extends FlameGame {
     UnitComponent? sacrifice;
     var cost = state.summonCost;
 
-    if (slot < 0) {
+    if (slot < 0 && state.autoSell) {
       sacrifice = _autoSellCandidate();
       if (sacrifice == null) {
         state.showToast('빈 슬롯이 없습니다 · 합성하거나 판매하세요', color: 0xFFFFC44D);
@@ -764,6 +780,9 @@ class LuckyDefenseGame extends FlameGame {
         state.showToast('골드가 부족합니다', color: 0xFFFF5C6E);
         return false;
       }
+    } else if (slot < 0) {
+      state.showToast('빈 슬롯이 없습니다 · 합성하거나 판매하세요', color: 0xFFFFC44D);
+      return false;
     } else if (state.gold < cost) {
       state.showToast('골드가 부족합니다', color: 0xFFFF5C6E);
       return false;
@@ -791,7 +810,7 @@ class LuckyDefenseGame extends FlameGame {
 
     var slot = _firstFreeSlot();
     if (slot < 0) {
-      final sacrifice = _autoSellCandidate();
+      final sacrifice = state.autoSell ? _autoSellCandidate() : null;
       if (sacrifice == null) {
         state.showToast('빈 슬롯이 없습니다 · 합성하거나 판매하세요', color: 0xFFFFC44D);
         return false;
@@ -854,17 +873,6 @@ class LuckyDefenseGame extends FlameGame {
       ),
     );
     return true;
-  }
-
-  int mergeAll() {
-    var count = 0;
-    while (count < 60 && mergeOnce()) {
-      count++;
-    }
-    if (count == 0) {
-      state.showToast('합성 가능한 조합이 없습니다', color: 0xFFFFC44D);
-    }
-    return count;
   }
 
   void sellUnit(UnitComponent unit) {

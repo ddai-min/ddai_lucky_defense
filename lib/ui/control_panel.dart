@@ -145,22 +145,6 @@ class _ActionRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Expanded(
-          flex: 4,
-          child: ActionButton(
-            label: '합성',
-            sub: state.mergeableGroups > 0
-                ? '${state.mergeableGroups}조합'
-                : '3개↑',
-            color: GameColors.green,
-            enabled: state.mergeableGroups > 0,
-            badge: state.mergeableGroups > 0
-                ? '${state.mergeableGroups}'
-                : null,
-            onTap: game.mergeAll,
-          ),
-        ),
-        const SizedBox(width: 6),
         ToggleChip(
           width: 50,
           label: '자동\n합성',
@@ -168,6 +152,17 @@ class _ActionRow extends StatelessWidget {
           color: GameColors.green,
           onTap: () {
             state.autoMerge = !state.autoMerge;
+            state.notify();
+          },
+        ),
+        const SizedBox(width: 6),
+        ToggleChip(
+          width: 50,
+          label: '자동\n판매',
+          active: state.autoSell,
+          color: GameColors.gold,
+          onTap: () {
+            state.autoSell = !state.autoSell;
             state.notify();
           },
         ),
