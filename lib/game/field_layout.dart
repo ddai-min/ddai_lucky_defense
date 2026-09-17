@@ -72,10 +72,7 @@ class FieldLayout {
     final w = size.x;
     final h = size.y;
 
-    lanes = (h / w) >= 1.55 ? 5 : 4;
-    slotRows = lanes - 1;
-
-    final bands = lanes * 2 - 1;
+    const bands = lanes * 2 - 1;
     final marginX = w * 0.055;
     final marginTop = h * 0.055;
     final marginBottom = h * 0.045;
@@ -111,20 +108,14 @@ class FieldLayout {
     path = EnemyPath(_roundCorners(raw, cornerRadius));
 
     // 슬롯은 좌우 끝의 세로 연결 구간을 피해 안쪽에만 배치한다.
-    // 열 수는 "슬롯이 세로 한계 크기에 가깝게 유지되는" 값을 고른다.
-    // (열을 너무 많이 잡으면 좁은 폰에서 슬롯이 손가락보다 작아진다.)
+    // 칸 수는 고정이고, 칸 크기만 화면에 맞춰 늘고 준다.
     final maxSlot = math.min(bandHeight * 0.78, 92.0);
     final available = (right - left) - pathWidth - 12;
-    var cols = ((available / maxSlot - 1) / 1.06 + 1).round().clamp(4, 8);
-    if (slotRows * cols > 24) {
-      cols = 24 ~/ slotRows;
-    }
-    slotCols = cols;
     slotSize = math.min(maxSlot, available / (1 + 1.06 * (slotCols - 1)));
     final pad = pathWidth / 2 + slotSize / 2 + 6;
     final areaLeft = left + pad;
     final areaRight = right - pad;
-    final step = slotCols > 1 ? (areaRight - areaLeft) / (slotCols - 1) : 0.0;
+    final step = (areaRight - areaLeft) / (slotCols - 1);
 
     slotCenters = <Vector2>[
       for (var j = 0; j < slotRows; j++)
@@ -135,9 +126,20 @@ class FieldLayout {
 
   final Vector2 size;
 
-  late final int lanes;
-  late final int slotRows;
-  late final int slotCols;
+  /// 몬스터가 지나는 가로 레인 수.
+  static const int lanes = 4;
+
+  /// 레인 사이에 끼워 넣는 유닛 슬롯 줄 수.
+  static const int slotRows = lanes - 1;
+
+  /// 한 줄에 놓이는 슬롯 수.
+  static const int slotCols = 6;
+
+  /// 배치 가능한 총 슬롯 수. 화면 크기·확대 배율과 무관하게 고정이다.
+  ///
+  /// 화면에 맞춰 칸 수를 늘리면 기기나 브라우저 확대 배율에 따라 놓을 수 있는
+  /// 유닛 수가 달라져 난이도가 통째로 바뀐다. 칸 수는 고정하고 칸 크기만 늘린다.
+  static const int maxSlots = slotRows * slotCols;
 
   /// 레인 한 칸의 세로 간격. 사거리·이펙트 크기의 기준 단위다.
   late final double bandHeight;
