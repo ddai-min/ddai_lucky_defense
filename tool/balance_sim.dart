@@ -25,7 +25,7 @@ import 'package:ddai_lucky_defense/game/data/balance.dart';
 const List<int> kTypesPerRarity = [4, 4, 4, 4, 4, 3, 1];
 
 /// 배치 가능한 슬롯 수.
-const int kSlots = 18;
+const int kSlots = 21;
 
 /// 사거리 밖이거나 재장전 중이라 명목 DPS 가 전부 몬스터에게 닿지는 않는다.
 /// 광역 유닛이 여럿을 동시에 때리는 몫은 일부 되돌아온다.
@@ -39,6 +39,7 @@ class SimConfig {
     this.label = '현재',
     this.coverage = kSkilledCoverage,
     this.upgradeShare = 0.45,
+    this.endless = true,
     this.enemyHp,
     this.summonCost,
     this.damage,
@@ -53,6 +54,9 @@ class SimConfig {
 
   final String label;
   final double coverage;
+
+  /// 무한 모드인지. 체력 곡선이 모드마다 다르다.
+  final bool endless;
 
   /// 웨이브마다 들어온 골드 중 강화에 쓰는 비율.
   final double upgradeShare;
@@ -70,25 +74,28 @@ class SimConfig {
   /// 참이면 «같은 등급 아무 3개» 로 합성한다(현재 규칙은 같은 유닛 3개).
   final bool mergeAnyOfRarity;
 
-  double hpAt(int wave) => enemyHp?.call(wave) ?? Balance.enemyHp(wave);
+  double hpAt(int wave) =>
+      enemyHp?.call(wave) ?? Balance.enemyHp(wave, endless: endless);
   int costAt(int units) => summonCost?.call(units) ?? Balance.summonCost(units);
   List<double> get damageTable => damage ?? Balance.damage;
 
-  SimConfig copyWith({String? label, double? coverage}) => SimConfig(
-    label: label ?? this.label,
-    coverage: coverage ?? this.coverage,
-    upgradeShare: upgradeShare,
-    enemyHp: enemyHp,
-    summonCost: summonCost,
-    damage: damage,
-    goldScale: goldScale,
-    slots: slots,
-    lives: lives,
-    waveInterval: waveInterval,
-    bossHpMultiplier: bossHpMultiplier,
-    startLuck: startLuck,
-    mergeAnyOfRarity: mergeAnyOfRarity,
-  );
+  SimConfig copyWith({String? label, double? coverage, bool? endless}) =>
+      SimConfig(
+        label: label ?? this.label,
+        coverage: coverage ?? this.coverage,
+        upgradeShare: upgradeShare,
+        endless: endless ?? this.endless,
+        enemyHp: enemyHp,
+        summonCost: summonCost,
+        damage: damage,
+        goldScale: goldScale,
+        slots: slots,
+        lives: lives,
+        waveInterval: waveInterval,
+        bossHpMultiplier: bossHpMultiplier,
+        startLuck: startLuck,
+        mergeAnyOfRarity: mergeAnyOfRarity,
+      );
 }
 
 /// (등급, 유닛 종류) 한 기.
@@ -345,24 +352,24 @@ String _pad(String s, int width) {
 void _report() {
   const skilled = SimConfig();
   final casual = skilled.copyWith(coverage: kCasualCoverage);
+  final clearSkilled = skilled.copyWith(endless: false);
+  final clearCasual = casual.copyWith(endless: false);
 
   stdout.writeln('운빨 디펜스 밸런스 리포트');
-  stdout.writeln('─' * 52);
-  stdout.writeln(
-    '몬스터 체력   1웨이브 ${_num(Balance.enemyHp(1))} · '
-    '10웨이브 ${_num(Balance.enemyHp(10))} · '
-    '20웨이브 ${_num(Balance.enemyHp(20))} · '
-    '30웨이브 ${_num(Balance.enemyHp(30))}',
-  );
-  stdout.writeln(
-    '  증가율      '
-    '×${(Balance.enemyHp(11) / Balance.enemyHp(10)).toStringAsFixed(3)} / 웨이브',
-  );
+  stdout.writeln('─' * 58);
+  for (final endless in [true, false]) {
+    double hp(int w) => Balance.enemyHp(w, endless: endless);
+    stdout.writeln(
+      '${endless ? '무한  ' : '클리어'} 체력  '
+      '1웨 ${_num(hp(1))} · 30웨 ${_num(hp(30))} · '
+      '60웨 ${_num(hp(60))} · 100웨 ${_num(hp(100))}  '
+      '(×${(hp(11) / hp(10)).toStringAsFixed(3)}/웨이브)',
+    );
+  }
   stdout.writeln(
     '웨이브 수입   '
-    '10웨이브 ${_num(Balance.clearGold(10) + Balance.killGold(10) * Balance.enemyCount(10))} G · '
-    '20웨이브 ${_num(Balance.clearGold(20) + Balance.killGold(20) * Balance.enemyCount(20))} G · '
-    '30웨이브 ${_num(Balance.clearGold(30) + Balance.killGold(30) * Balance.enemyCount(30))} G',
+    '10웨 ${_num(Balance.clearGold(10) + Balance.killGold(10) * Balance.enemyCount(10))} G · '
+    '30웨 ${_num(Balance.clearGold(30) + Balance.killGold(30) * Balance.enemyCount(30))} G',
   );
   stdout.writeln(
     '소환 비용     빈 슬롯 ${_num(Balance.summonCost(0))} G · '
@@ -370,15 +377,29 @@ void _report() {
   );
   stdout.writeln('슬롯          $kSlots칸');
   stdout.writeln('');
-  stdout.writeln('생존 웨이브 ($_seeds판 중앙값)');
   stdout.writeln(
-    '  숙련자 (커버리지 ${(kSkilledCoverage * 100).round()}%)  '
-    '${_medianEnd(skilled).toStringAsFixed(0)}',
+    '무한 모드 생존 웨이브 ($_seeds판 중앙값)   '
+    '숙련자 ${_medianEnd(skilled).toStringAsFixed(0)} · '
+    '라이트 ${_medianEnd(casual).toStringAsFixed(0)}',
   );
+  stdout.writeln('');
   stdout.writeln(
-    '  라이트 (커버리지 ${(kCasualCoverage * 100).round()}%)  '
-    '${_medianEnd(casual).toStringAsFixed(0)}',
+    '클리어 모드 ${Balance.clearWave}웨이브 도달률   '
+    '숙련자 ${_clearRate(clearSkilled).toStringAsFixed(0)}% · '
+    '라이트 ${_clearRate(clearCasual).toStringAsFixed(0)}%',
   );
+}
+
+/// 클리어 모드에서 마지막 웨이브까지 간 판의 비율.
+double _clearRate(SimConfig c) {
+  var cleared = 0;
+  for (var s = 0; s < _seeds; s++) {
+    if (runOnce(s, c, maxWave: Balance.clearWave).endedAt >=
+        Balance.clearWave) {
+      cleared++;
+    }
+  }
+  return cleared / _seeds * 100;
 }
 
 void _curve() {
@@ -416,9 +437,14 @@ void _levers() {
     SimConfig(
       label: '체력 증가율 −0.03',
       enemyHp: (w) =>
-          Balance.enemyHp(1) *
+          Balance.enemyHp(1, endless: true) *
           math
-              .pow((Balance.enemyHp(11) / Balance.enemyHp(10)) - 0.03, w - 1)
+              .pow(
+                (Balance.enemyHp(11, endless: true) /
+                        Balance.enemyHp(10, endless: true)) -
+                    0.03,
+                w - 1,
+              )
               .toDouble(),
     ),
     const SimConfig(label: '골드 수입 ×1.4', goldScale: 1.4),

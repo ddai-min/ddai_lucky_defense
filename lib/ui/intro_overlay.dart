@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../game/data/balance.dart';
+import '../game/game_state.dart';
 import '../game/lucky_defense_game.dart';
 import 'theme.dart';
 
@@ -103,7 +104,23 @@ class IntroOverlay extends StatelessWidget {
                     title: '조작',
                     body: '유닛을 탭하면 정보·판매·합성, 드래그하면 자리를 바꿉니다.',
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      for (final mode in GameMode.values) ...[
+                        if (mode != GameMode.values.first)
+                          const SizedBox(width: 8),
+                        Expanded(
+                          child: _ModeCard(
+                            mode: mode,
+                            selected: game.state.mode == mode,
+                            onTap: () => game.setMode(mode),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ActionButton(
@@ -119,6 +136,78 @@ class IntroOverlay extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 플레이 방식 하나를 고르는 카드.
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
+    required this.mode,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final GameMode mode;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = mode.isEndless ? GameColors.accent : GameColors.green;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: 0.18)
+              : GameColors.panelSoft,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(
+            color: selected ? color : GameColors.border,
+            width: selected ? 1.8 : 1.2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(mode.icon, style: const TextStyle(fontSize: 13)),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    mode.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? Colors.white : GameColors.sub,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (selected) ...[
+                  const SizedBox(width: 4),
+                  Icon(Icons.check_circle_rounded, size: 13, color: color),
+                ],
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              mode.description,
+              maxLines: 2,
+              style: TextStyle(
+                color: selected ? color : GameColors.sub,
+                fontSize: 9.5,
+                height: 1.3,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -32,7 +32,11 @@ class HudBar extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  _WaveBadge(wave: state.wave, best: state.best.wave),
+                  _WaveBadge(
+                    wave: state.wave,
+                    best: state.best.wave,
+                    total: state.mode.isEndless ? null : Balance.clearWave,
+                  ),
                   const SizedBox(width: 8),
                   StatChip(
                     icon: '❤️',
@@ -80,7 +84,9 @@ class HudBar extends StatelessWidget {
                   SizedBox(
                     width: 108,
                     child: Text(
-                      state.wave == 0
+                      state.isFinalWave
+                          ? '마지막 웨이브!'
+                          : state.wave == 0
                           ? '전투 준비 ${state.waveCountdown.ceil()}초'
                           : '다음 웨이브 ${state.waveCountdown.ceil()}초',
                       style: const TextStyle(
@@ -127,9 +133,16 @@ class HudBar extends StatelessWidget {
 }
 
 class _WaveBadge extends StatelessWidget {
-  const _WaveBadge({required this.wave, required this.best});
+  const _WaveBadge({
+    required this.wave,
+    required this.best,
+    required this.total,
+  });
 
   final int wave;
+
+  /// 클리어 모드의 목표 웨이브. 무한 모드면 null.
+  final int? total;
 
   /// 기기에 저장된 최고 도달 웨이브(0이면 기록 없음).
   final int best;
@@ -167,6 +180,16 @@ class _WaveBadge extends StatelessWidget {
               height: 1,
             ),
           ),
+          if (total != null)
+            Text(
+              '/$total',
+              style: const TextStyle(
+                color: GameColors.sub,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                height: 1.3,
+              ),
+            ),
           if (best > 0) ...[
             const SizedBox(width: 7),
             Container(width: 1, height: 12, color: GameColors.border),

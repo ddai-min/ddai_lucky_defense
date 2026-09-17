@@ -53,7 +53,7 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
     _phase += dt;
     _recoil = math.max(0, _recoil - dt * 7);
 
-    if (game.state.isGameOver || game.state.paused) {
+    if (game.state.isFinished || game.state.paused) {
       return;
     }
 

@@ -5,7 +5,21 @@ import 'data/balance.dart';
 import 'data/rarity.dart';
 import 'record_store.dart';
 
-enum GamePhase { ready, playing, gameOver }
+enum GamePhase { ready, playing, gameOver, cleared }
+
+/// 플레이 방식. 인트로에서 고른다.
+enum GameMode {
+  clear('클리어 모드', '🏁', '100 웨이브를 막아내면 승리'),
+  endless('무한 모드', '♾️', '더 가파르게 · 끝까지 얼마나');
+
+  const GameMode(this.label, this.icon, this.description);
+
+  final String label;
+  final String icon;
+  final String description;
+
+  bool get isEndless => this == GameMode.endless;
+}
 
 /// HUD/컨트롤 패널이 구독하는 게임 진행 상태.
 class GameState extends ChangeNotifier {
@@ -34,6 +48,9 @@ class GameState extends ChangeNotifier {
 
   int speedMultiplier = 1;
   GamePhase phase = GamePhase.ready;
+
+  /// 인트로에서 고른 플레이 방식. 다시 시작해도 유지된다.
+  GameMode mode = GameMode.clear;
 
   /// 인트로를 닫고 실제로 전투가 시작됐는지.
   bool started = false;
@@ -72,6 +89,13 @@ class GameState extends ChangeNotifier {
   bool _notifyScheduled = false;
 
   bool get isGameOver => phase == GamePhase.gameOver;
+  bool get isCleared => phase == GamePhase.cleared;
+
+  /// 이겼든 졌든 판이 끝났는지.
+  bool get isFinished => isGameOver || isCleared;
+
+  /// 클리어 모드의 마지막 웨이브에 들어섰는지. 여기서는 다음 웨이브가 없다.
+  bool get isFinalWave => !mode.isEndless && wave >= Balance.clearWave;
   int get summonCost => Balance.summonCost(unitCount);
   bool get slotsFull => unitCount >= slotCount && slotCount > 0;
 
@@ -85,7 +109,7 @@ class GameState extends ChangeNotifier {
       willAutoSell ? Balance.summonCost(unitCount - 1) : summonCost;
 
   bool get canSummon {
-    if (isGameOver) {
+    if (isFinished) {
       return false;
     }
     if (!slotsFull) {
@@ -97,7 +121,7 @@ class GameState extends ChangeNotifier {
 
   bool get canHighSummon =>
       gems >= Balance.highSummonGems &&
-      !isGameOver &&
+      !isFinished &&
       (!slotsFull || willAutoSell);
 
   int get atkCost => Balance.atkUpgradeCost(atkLevel);
@@ -126,6 +150,7 @@ class GameState extends ChangeNotifier {
     speedMultiplier = 1;
     phase = GamePhase.playing;
     started = true;
+    // mode(플레이 방식)는 판을 넘어 유지된다.
     unitCount = 0;
     mergeableGroups = 0;
     autoSellName = null;

@@ -51,12 +51,22 @@ class Balance {
   static const int bossEvery = 10;
   static const int rushEvery = 5;
 
+  /// 클리어 모드가 끝나는 웨이브.
+  static const int clearWave = 100;
+
   /// 몬스터 체력.
   ///
   /// 증가율이 플레이어 전투력 증가율(실측 웨이브당 약 +13.5%)보다 훨씬 가파르면
   /// 중반부터 격차가 복리로 벌어져 아무것도 손쓸 수 없게 된다. 대신 첫 웨이브
   /// 체력을 올려, 초반이 손 놓고 있어도 되는 구간이 되지 않도록 한다.
-  static double enemyHp(int wave) => 90 * math.pow(1.17, wave - 1).toDouble();
+  ///
+  /// 모드마다 곡선이 다르다. 클리어 모드는 [clearWave] 에서 끝을 보라고 만든
+  /// 모드이므로 거기까지 갈 수 있게 완만하고, 무한 모드는 «얼마나 멀리 가나» 가
+  /// 전부라 더 가파르다. 같은 곡선을 쓰면 둘 중 하나가 망가진다 — 무한 모드에
+  /// 맞추면 100웨이브를 아무도 못 깨고, 클리어 모드에 맞추면 무한 모드가
+  /// 100웨이브까지 밋밋해진다.
+  static double enemyHp(int wave, {required bool endless}) =>
+      90 * math.pow(endless ? 1.17 : 1.10, wave - 1).toDouble();
 
   static int enemyCount(int wave) => math.min(32, 8 + (wave * 0.55).floor());
 

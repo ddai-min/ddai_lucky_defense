@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../game/components/render_utils.dart';
+import '../game/data/balance.dart';
 import '../game/data/rarity.dart';
 import '../game/game_state.dart';
 import '../game/lucky_defense_game.dart';
 import 'theme.dart';
 
-/// 라이프가 0이 되면 게임 위에 뜨는 결과 화면.
-class GameOverOverlay extends StatelessWidget {
-  const GameOverOverlay({super.key, required this.game});
+/// 판이 끝나면 뜨는 결과 화면. 클리어와 패배를 함께 다룬다.
+class ResultOverlay extends StatelessWidget {
+  const ResultOverlay({super.key, required this.game});
 
   final LuckyDefenseGame game;
 
@@ -17,6 +18,8 @@ class GameOverOverlay extends StatelessWidget {
     final GameState state = game.state;
     final bestRarity =
         Rarity.values[state.bestRarityTier.clamp(0, Rarity.values.length - 1)];
+    final cleared = state.isCleared;
+    final accent = cleared ? GameColors.gold : GameColors.life;
 
     // 뒤쪽 HUD/조작 패널이 눌리지 않도록 포인터를 흡수한다.
     return GestureDetector(
@@ -32,12 +35,10 @@ class GameOverOverlay extends StatelessWidget {
               decoration: BoxDecoration(
                 color: GameColors.panel,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: GameColors.life.withValues(alpha: 0.6),
-                ),
+                border: Border.all(color: accent.withValues(alpha: 0.6)),
                 boxShadow: [
                   BoxShadow(
-                    color: GameColors.life.withValues(alpha: 0.18),
+                    color: accent.withValues(alpha: 0.18),
                     blurRadius: 30,
                     spreadRadius: 2,
                   ),
@@ -47,13 +48,13 @@ class GameOverOverlay extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    state.isNewRecord ? '🏆' : '💀',
+                    cleared ? '🏆' : '💀',
                     style: const TextStyle(fontSize: 42),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '방어 실패',
-                    style: TextStyle(
+                  Text(
+                    cleared ? '정복 완료!' : '방어 실패',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
@@ -61,7 +62,9 @@ class GameOverOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${state.wave} 웨이브에서 무너졌습니다',
+                    cleared
+                        ? '${Balance.clearWave} 웨이브를 모두 막아냈습니다'
+                        : '${state.wave} 웨이브에서 무너졌습니다',
                     style: const TextStyle(
                       color: GameColors.sub,
                       fontSize: 12,
@@ -114,16 +117,30 @@ class GameOverOverlay extends StatelessWidget {
                     valueColor: GameColors.gold,
                   ),
                   const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ActionButton(
-                      icon: '🔄',
-                      label: '다시 시작',
-                      color: GameColors.accent,
-                      filled: true,
-                      height: 50,
-                      onTap: game.restart,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: ActionButton(
+                          icon: '🔄',
+                          label: '다시 시작',
+                          sub: state.mode.label,
+                          color: GameColors.accent,
+                          filled: true,
+                          height: 50,
+                          onTap: game.restart,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: ActionButton(
+                          label: '모드 선택',
+                          height: 50,
+                          onTap: () => game.restart(toIntro: true),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

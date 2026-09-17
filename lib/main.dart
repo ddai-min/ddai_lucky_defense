@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'game/game_state.dart';
 import 'game/lucky_defense_game.dart';
 import 'ui/control_panel.dart';
-import 'ui/game_over_overlay.dart';
+import 'ui/result_overlay.dart';
 import 'ui/hud_bar.dart';
 import 'ui/intro_overlay.dart';
 import 'ui/theme.dart';
@@ -160,8 +160,8 @@ class _GameScreenState extends State<GameScreen> {
                               if (!state.started) {
                                 return IntroOverlay(game: game);
                               }
-                              if (state.isGameOver) {
-                                return GameOverOverlay(game: game);
+                              if (state.isFinished) {
+                                return ResultOverlay(game: game);
                               }
                               return const SizedBox.shrink();
                             },

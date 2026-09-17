@@ -190,7 +190,7 @@ class LuckyDefenseGame extends FlameGame {
     _damageTextBudget = math.min(20, _damageTextBudget + dt * 45);
     _updateShake(dt);
 
-    if (!state.started || state.isGameOver) {
+    if (!state.started || state.isFinished) {
       return;
     }
 
@@ -212,7 +212,18 @@ class LuckyDefenseGame extends FlameGame {
 
     state.waveCountdown -= dt;
     if (state.waveCountdown <= 0) {
-      _startWave();
+      if (state.isFinalWave) {
+        // 클리어 모드의 마지막 웨이브. 다음 웨이브는 없다.
+        state.waveCountdown = 1;
+      } else {
+        _startWave();
+      }
+    }
+
+    // 마지막 웨이브를 남김없이 처리하면 클리어.
+    if (state.isFinalWave && _pendingSpawns == 0 && enemies.isEmpty) {
+      _clearGame();
+      return;
     }
 
     _hudTimer -= dt;
@@ -272,7 +283,7 @@ class LuckyDefenseGame extends FlameGame {
     if (isBoss) {
       final kind = bossForWave(w);
       _spawnKind = kind;
-      _spawnHp = Balance.enemyHp(w) * Balance.bossHpMultiplier;
+      _spawnHp = _hpAt(w) * Balance.bossHpMultiplier;
       _spawnLap = Balance.lapSeconds(w) * Balance.bossLapMultiplier;
       _spawnIsBoss = true;
       _pendingSpawns = 1;
@@ -289,7 +300,7 @@ class LuckyDefenseGame extends FlameGame {
     } else {
       final kind = mobForWave(w);
       _spawnKind = kind;
-      _spawnHp = Balance.enemyHp(w) * (isRush ? Balance.rushHpMultiplier : 1.0);
+      _spawnHp = _hpAt(w) * (isRush ? Balance.rushHpMultiplier : 1.0);
       _spawnLap =
           Balance.lapSeconds(w) * (isRush ? Balance.rushLapMultiplier : 1.0);
       _spawnIsBoss = false;
@@ -310,6 +321,9 @@ class LuckyDefenseGame extends FlameGame {
     _spawnTimer = 0;
     _hudDirty = true;
   }
+
+  double _hpAt(int wave) =>
+      Balance.enemyHp(wave, endless: state.mode.isEndless);
 
   void _spawnEnemy() {
     final kind = _spawnKind;
@@ -603,7 +617,7 @@ class LuckyDefenseGame extends FlameGame {
 
   /// 일시정지 토글.
   void togglePause() {
-    if (!state.started || state.isGameOver) {
+    if (!state.started || state.isFinished) {
       return;
     }
     state.paused = !state.paused;
@@ -614,6 +628,32 @@ class LuckyDefenseGame extends FlameGame {
   void startGame() {
     state.started = true;
     state.phase = GamePhase.playing;
+    state.notify();
+  }
+
+  /// 클리어 모드에서 마지막 웨이브까지 막아냈다.
+  void _clearGame() {
+    state.phase = GamePhase.cleared;
+    _pendingSpawns = 0;
+    submitRecord();
+    shake(0.45);
+    fieldRoot.add(
+      WaveBanner(
+        '정복 완료',
+        'WAVE ${Balance.clearWave} CLEAR',
+        const Color(0xFFFFD34E),
+        Vector2(layout.size.x / 2, layout.size.y * 0.40),
+      ),
+    );
+    state.notify();
+  }
+
+  /// 인트로에서 플레이 방식을 고른다.
+  void setMode(GameMode mode) {
+    if (state.mode == mode) {
+      return;
+    }
+    state.mode = mode;
     state.notify();
   }
 
@@ -759,7 +799,7 @@ class LuckyDefenseGame extends FlameGame {
   }
 
   bool summon() {
-    if (state.isGameOver) {
+    if (state.isFinished) {
       return false;
     }
 
@@ -800,7 +840,7 @@ class LuckyDefenseGame extends FlameGame {
   }
 
   bool highSummon() {
-    if (state.isGameOver) {
+    if (state.isFinished) {
       return false;
     }
     if (state.gems < Balance.highSummonGems) {
@@ -978,7 +1018,8 @@ class LuckyDefenseGame extends FlameGame {
     return true;
   }
 
-  void restart() {
+  /// 판을 새로 시작한다. [toIntro] 면 플레이 방식을 다시 고르도록 인트로로 간다.
+  void restart({bool toIntro = false}) {
     for (final c in fieldRoot.children.toList()) {
       final permanent =
           identical(c, _background) ||
@@ -1002,6 +1043,10 @@ class LuckyDefenseGame extends FlameGame {
     fieldRoot.position.setZero();
 
     state.reset();
+    if (toIntro) {
+      state.started = false;
+      state.phase = GamePhase.ready;
+    }
     state.slotCount = layout.slotCount;
     _recount();
     _hudDirty = true;

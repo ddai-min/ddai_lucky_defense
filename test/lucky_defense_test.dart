@@ -305,7 +305,94 @@ void main() {
       [for (final r in Rarity.values) kUnitsByRarity[r]!.length],
       [4, 4, 4, 4, 4, 3, 1], // kTypesPerRarity
     );
-    expect(FieldLayout.maxSlots, 18); // kSlots
+    expect(FieldLayout.maxSlots, 21); // kSlots
+  });
+
+  testWidgets('클리어 모드는 ${Balance.clearWave}웨이브를 막아내면 끝난다', (tester) async {
+    final game = await _boot(tester);
+    game.setMode(GameMode.clear);
+    game.startGame();
+    final state = game.state;
+    state
+      ..lives = 9999
+      ..wave = Balance.clearWave - 1
+      ..waveCountdown = 0.05;
+
+    // 마지막 웨이브가 시작된다.
+    for (var i = 0; i < 60; i++) {
+      game.update(1 / 60);
+    }
+    expect(state.wave, Balance.clearWave);
+    expect(state.isFinalWave, isTrue);
+    expect(game.boss, isNotNull, reason: '${Balance.clearWave}웨이브는 보스 웨이브다');
+    expect(state.isCleared, isFalse, reason: '아직 보스가 살아 있다');
+
+    // 보스를 처치하면 클리어.
+    game.boss!.takeDamage(1e30);
+    for (var i = 0; i < 10; i++) {
+      game.update(1 / 60);
+    }
+    await tester.pump();
+
+    expect(state.isCleared, isTrue);
+    expect(state.isFinished, isTrue);
+    expect(find.text('정복 완료!'), findsOneWidget);
+
+    // 더 이상 웨이브가 시작되지 않는다.
+    for (var i = 0; i < 60 * 40; i++) {
+      game.update(1 / 60);
+    }
+    expect(state.wave, Balance.clearWave);
+    expect(game.enemies, isEmpty);
+  });
+
+  testWidgets('무한 모드는 ${Balance.clearWave}웨이브를 넘어 계속된다', (tester) async {
+    final game = await _boot(tester);
+    game.setMode(GameMode.endless);
+    game.startGame();
+    final state = game.state;
+    state
+      ..lives = 9999
+      ..wave = Balance.clearWave
+      ..waveCountdown = 0.05;
+
+    expect(state.isFinalWave, isFalse);
+    for (var i = 0; i < 60 * 3; i++) {
+      game.update(1 / 60);
+    }
+    expect(state.wave, greaterThan(Balance.clearWave));
+    expect(state.isCleared, isFalse);
+  });
+
+  testWidgets('인트로에서 모드를 고르고, 결과 화면에서 다시 고를 수 있다', (tester) async {
+    final game = await _boot(tester);
+    final state = game.state;
+
+    // 기본은 클리어 모드.
+    expect(state.mode, GameMode.clear);
+    expect(find.text(GameMode.clear.label), findsOneWidget);
+    expect(find.text(GameMode.endless.label), findsOneWidget);
+
+    await tester.tap(find.text(GameMode.endless.label));
+    await tester.pump();
+    expect(state.mode, GameMode.endless);
+
+    game.startGame();
+    await tester.pump();
+    expect(find.text('시작하기'), findsNothing);
+
+    // 모드는 다시 시작해도 유지된다.
+    game.restart();
+    await tester.pump();
+    expect(state.mode, GameMode.endless);
+    expect(state.started, isTrue);
+
+    // 인트로로 돌아가면 다시 고를 수 있다.
+    game.restart(toIntro: true);
+    await tester.pump();
+    expect(state.started, isFalse);
+    expect(find.text('시작하기'), findsOneWidget);
+    expect(state.mode, GameMode.endless, reason: '고른 모드는 남아 있다');
   });
 
   group('자동 판매 대상 고르기', () {
@@ -634,7 +721,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  test('슬롯 격자는 화면 크기와 무관하게 한 줄 6개로 고정된다', () {
+  test('슬롯 격자는 화면 크기와 무관하게 한 줄 7개로 고정된다', () {
     const sizes = [
       [320.0, 480.0], // 작은 폰
       [390.0, 520.0], // 일반 폰
@@ -649,7 +736,7 @@ void main() {
       final reason = '${wh[0]}x${wh[1]}';
 
       expect(layout.slotCount, FieldLayout.maxSlots, reason: reason);
-      expect(layout.slotCount, 18, reason: reason);
+      expect(layout.slotCount, 21, reason: reason);
 
       // 같은 y 를 공유하는 슬롯이 정확히 6개씩, 3줄이다.
       final rows = <double, int>{};
@@ -657,7 +744,7 @@ void main() {
         rows.update(c.y, (v) => v + 1, ifAbsent: () => 1);
       }
       expect(rows.length, 3, reason: reason);
-      expect(rows.values.every((v) => v == 6), isTrue, reason: reason);
+      expect(rows.values.every((v) => v == 7), isTrue, reason: reason);
 
       // 칸끼리 겹치지 않고 화면 안에 들어간다.
       final step = layout.slotCenters[1].x - layout.slotCenters[0].x;
