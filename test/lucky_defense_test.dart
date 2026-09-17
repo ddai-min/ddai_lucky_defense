@@ -298,6 +298,16 @@ void main() {
     );
   });
 
+  test('시뮬레이터가 복사해 쓰는 상수가 실제 게임과 맞는다', () {
+    // tool/balance_sim.dart 는 도감·필드가 Flutter 에 의존해 불러올 수 없어서
+    // 아래 두 값을 복사해 쓴다. 여기가 깨지면 시뮬레이터도 같이 고쳐야 한다.
+    expect(
+      [for (final r in Rarity.values) kUnitsByRarity[r]!.length],
+      [4, 4, 4, 4, 4, 3, 1], // kTypesPerRarity
+    );
+    expect(FieldLayout.maxSlots, 18); // kSlots
+  });
+
   group('자동 판매 대상 고르기', () {
     UnitSpec of(String id) => kUnitById[id]!;
 

@@ -59,6 +59,9 @@ lib/
 │  │  └─ enemy_catalog.dart        몬스터 · 보스 도감
 │  └─ components/                  Flame 컴포넌트 (유닛/몬스터/투사체/이펙트/배경)
 └─ ui/                             HUD · 조작 패널 · 도감 시트 · 오버레이
+
+tool/
+└─ balance_sim.dart                난이도 시뮬레이터 (아래 «밸런스 조정» 참고)
 ```
 
 ## 밸런스 조정
@@ -67,13 +70,39 @@ lib/
 
 ```dart
 static const List<double> damage = [10, 34, 116, 400, 1400, 5200, 21000]; // 등급별 공격력
-static double enemyHp(int wave) => 55 * math.pow(1.225, wave - 1);        // 몬스터 체력 곡선
+static double enemyHp(int wave) => 90 * math.pow(1.17, wave - 1);         // 몬스터 체력 곡선
 static int summonCost(int unitCount) => 20 + 6 * unitCount;               // 소환 비용
 static List<double> summonWeights(int luck) { ... }                       // 등급별 소환 확률
 ```
 
 유닛을 추가하려면 `unit_catalog.dart`의 `kUnitCatalog`에 `UnitSpec` 한 줄만 넣으면
 도감·소환·합성에 자동으로 반영됩니다.
+
+### 난이도 시뮬레이터
+
+수치를 바꿨을 때 실제로 몇 웨이브까지 버티는지 감이 아니라 숫자로 봅니다.
+공식은 `Balance` 를 그대로 가져다 쓰므로 게임과 어긋나지 않습니다.
+
+```sh
+dart run tool/balance_sim.dart           # 현재 밸런스 리포트
+dart run tool/balance_sim.dart --curve   # 웨이브별 여유(보유 DPS ÷ 필요 DPS)
+dart run tool/balance_sim.dart --levers  # 조정 레버별 효과 비교
+```
+
+**모델에서 가장 불확실한 값은 «커버리지»** 입니다. 사거리 밖이거나 재장전 중이라
+명목 DPS 가 전부 몬스터에게 닿지는 않는데, 이걸 숙련자 0.80 · 라이트 0.55 로 가정합니다.
+유닛 배치 전략과 둔화·중독 시너지는 모델에 없습니다. **절대 웨이브 수는 어림값이고,
+레버 사이의 상대 비교가 믿을 만한 부분**입니다.
+
+시뮬레이터가 알아낸 것 중 직관과 어긋나는 것들:
+
+| 조정 | 생존 웨이브 변화 |
+| --- | --- |
+| 슬롯 18 → 24 | **±0** — 슬롯이 늘면 소환 비용도 오르고, 어차피 합성으로 압축된다 |
+| 강화 비용 대폭 인하 | **±0** — 효과는 선형, 체력은 지수라 못 따라간다 |
+| 보스 체력 ×32 → ×20 | **±0** — 보스는 사망 원인이 아니다(창이 1.65배 길어 오히려 여유) |
+| 라이프 20 → 30 | +2 — 무너지기 시작하면 순식간이라 버퍼가 무의미하다 |
+| 몬스터 체력 증가율 | **압도적** — 사실상 이것 하나가 난이도를 결정한다 |
 
 ## 웹 배포
 

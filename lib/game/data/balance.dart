@@ -51,20 +51,25 @@ class Balance {
   static const int bossEvery = 10;
   static const int rushEvery = 5;
 
-  static double enemyHp(int wave) => 55 * math.pow(1.225, wave - 1).toDouble();
+  /// 몬스터 체력.
+  ///
+  /// 증가율이 플레이어 전투력 증가율(실측 웨이브당 약 +13.5%)보다 훨씬 가파르면
+  /// 중반부터 격차가 복리로 벌어져 아무것도 손쓸 수 없게 된다. 대신 첫 웨이브
+  /// 체력을 올려, 초반이 손 놓고 있어도 되는 구간이 되지 않도록 한다.
+  static double enemyHp(int wave) => 90 * math.pow(1.17, wave - 1).toDouble();
 
   static int enemyCount(int wave) => math.min(32, 8 + (wave * 0.55).floor());
 
   /// 한 바퀴를 도는 데 걸리는 시간(초). 해상도와 무관하게 체감이 같아진다.
   static double lapSeconds(int wave) => math.max(19.0, 33.0 - wave * 0.32);
 
-  static int killGold(int wave) => 3 + (wave * 0.85).floor();
-  static int clearGold(int wave) => 30 + 9 * wave;
+  static int killGold(int wave) => 4 + (wave * 1.19).floor();
+  static int clearGold(int wave) => 42 + 13 * wave;
 
   // 보스
   static const double bossHpMultiplier = 32;
   static const double bossLapMultiplier = 1.65; // 더 느리게 이동
-  static int bossGold(int wave) => 200 + 40 * wave;
+  static int bossGold(int wave) => 280 + 56 * wave;
   static int bossGems(int wave) => 4 + wave ~/ 10;
   static const int bossLifeCost = 5;
 
