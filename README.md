@@ -4,6 +4,8 @@
 Flutter + [Flame](https://flame-engine.org) 게임 엔진으로 만들었고, **이미지 에셋이 전혀 없이**
 전부 Canvas 드로잉과 이모지로 렌더링합니다.
 
+**웹에서 바로 플레이** → <https://ddai-min.github.io/ddai_lucky_defense/>
+
 ## 실행
 
 ```bash
@@ -70,6 +72,34 @@ static List<double> summonWeights(int luck) { ... }                       // 등
 유닛을 추가하려면 `unit_catalog.dart`의 `kUnitCatalog`에 `UnitSpec` 한 줄만 넣으면
 도감·소환·합성에 자동으로 반영됩니다.
 
+## 웹 배포
+
+GitHub Pages 에 올라간다. `main` 에 푸시하면
+[`.github/workflows/web-deploy.yml`](.github/workflows/web-deploy.yml) 이
+analyze · test 를 돌린 뒤 빌드해서 배포한다. 수동으로 돌리려면 Actions 탭의
+«웹 배포» 에서 *Run workflow*.
+
+저장소 이름이 경로에 붙는 주소이므로 `--base-href "/<저장소 이름>/"` 가 필요하다.
+이걸 빼면 `flutter_bootstrap.js` 를 루트에서 찾다가 404 가 나고 빈 화면만 보인다.
+로컬에서 같은 조건으로 확인하려면:
+
+```sh
+fvm flutter build web --release --base-href /ddai_lucky_defense/
+mkdir -p /tmp/pages && cp -R build/web /tmp/pages/ddai_lucky_defense
+(cd /tmp/pages && python3 -m http.server 8098)
+# → http://127.0.0.1:8098/ddai_lucky_defense/
+```
+
+콜드 로딩은 약 4.7MB다. 자체 호스팅하는 건 `main.dart.js` 뿐이고(2.1MB, gzip 0.6MB),
+나머지는 gstatic CDN 에서 온다 — CanvasKit 2.8MB(brotli), Noto Color Emoji 0.69MB,
+Noto Sans Symbols2 0.37MB, Noto Sans KR 0.17MB. 두 번째 방문부터는 캐시를 쓴다.
+
+한글 글꼴을 앱에 넣지 않은 이유: 이 게임은 유닛·몬스터가 전부 이모지라 어차피
+Noto Color Emoji 가 필요한데, 그건 10MB짜리라 번들이 현실적이지 않다. gstatic 이
+막히면 이모지부터 깨지므로, 한글만 번들해도 얻는 게 없다. 대신 Flutter 가 첫
+프레임을 그릴 때까지 몇 초가 걸리므로 `web/index.html` 에 HTML/CSS 만으로 즉시 뜨는
+로딩 화면을 깔아 두었다.
+
 ## 구현 노트
 
 - **카메라 미사용** — 모든 컴포넌트를 `fieldRoot` 아래 화면 좌표 그대로 배치해 좌표 계산이 단순합니다.
@@ -82,6 +112,8 @@ static List<double> summonWeights(int luck) { ... }                       // 등
 - **렌더 캐시** — 그라데이션 셰이더, 점선 슬롯 경로, 배경 격자, 이모지 `TextPainter`를
   캐시해 프레임마다 재생성하지 않습니다.
 - **배속(×2/×3)** 은 dt를 키우는 대신 서브스텝을 여러 번 돌려 투사체가 적을 건너뛰지 않게 합니다.
+- **넓은 화면** 에서는 앱을 480 폭으로 가운데 세웁니다. 세로 화면 기준으로 만든 게임이라
+  그대로 늘리면 필드가 납작해지고 버튼만 길어집니다.
 - **최고 기록** 은 `RecordStore` 인터페이스 뒤에 있습니다. 실제 저장은 `PrefsRecordStore`가,
   테스트는 `MemoryRecordStore`가 담당하므로 플러그인 목 없이도 갱신 규칙을 검증할 수 있습니다.
   저장소 I/O는 `onLoad`를 막지 않도록 백그라운드로 돌리고, 읽기/쓰기 실패는 삼켜서
