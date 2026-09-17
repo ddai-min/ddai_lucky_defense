@@ -654,6 +654,12 @@ class LuckyDefenseGame extends FlameGame {
       unitCounts.update(u.spec.id, (v) => v + 1, ifAbsent: () => 1);
     }
     state.unitCount = units.length;
+
+    final sacrifice = _autoSellCandidate();
+    state.autoSellName = sacrifice?.spec.name;
+    state.autoSellRarity = sacrifice?.spec.rarity;
+    state.autoSellRefund = sacrifice?.spec.sellPrice ?? 0;
+
     var groups = 0;
     unitCounts.forEach((id, count) {
       final spec = kUnitById[id];
@@ -706,20 +712,68 @@ class LuckyDefenseGame extends FlameGame {
     }
   }
 
+  /// 자리가 없을 때 대신 팔려 나갈 유닛. 규칙은 [pickAutoSellIndex] 참고.
+  UnitComponent? _autoSellCandidate() {
+    if (units.isEmpty) {
+      return null;
+    }
+    final index = pickAutoSellIndex(
+      units.map((u) => u.spec).toList(growable: false),
+    );
+    return index < 0 ? null : units[index];
+  }
+
+  /// 자리를 비우려고 한 기를 판다. 어떤 유닛이 나갔는지 눈에 보이게 알린다.
+  void _autoSell(UnitComponent unit) {
+    final spec = unit.spec;
+    fieldRoot.add(
+      BurstEffect(
+        unit.position,
+        spec.rarity.color,
+        count: 12,
+        speed: layout.bandHeight * 1.5,
+        size: layout.bandHeight * 0.05,
+      ),
+    );
+    sellUnit(unit);
+    state.showToast(
+      '자리가 없어 ${spec.name} 자동 판매  +${formatNumber(spec.sellPrice)} G',
+      color: 0xFFFFD34E,
+    );
+  }
+
   bool summon() {
     if (state.isGameOver) {
       return false;
     }
-    final cost = state.summonCost;
-    if (state.gold < cost) {
+
+    var slot = _firstFreeSlot();
+    UnitComponent? sacrifice;
+    var cost = state.summonCost;
+
+    if (slot < 0) {
+      sacrifice = _autoSellCandidate();
+      if (sacrifice == null) {
+        state.showToast('빈 슬롯이 없습니다 · 합성하거나 판매하세요', color: 0xFFFFC44D);
+        return false;
+      }
+      // 한 기를 팔면 보유 수가 줄어 소환 비용도 함께 내려간다.
+      cost = Balance.summonCost(units.length - 1);
+      if (state.gold + sacrifice.spec.sellPrice < cost) {
+        // 팔아도 모자라면 아예 팔지 않는다. 손해만 보고 끝나면 안 된다.
+        state.showToast('골드가 부족합니다', color: 0xFFFF5C6E);
+        return false;
+      }
+    } else if (state.gold < cost) {
       state.showToast('골드가 부족합니다', color: 0xFFFF5C6E);
       return false;
     }
-    final slot = _firstFreeSlot();
-    if (slot < 0) {
-      state.showToast('빈 슬롯이 없습니다 · 합성하거나 판매하세요', color: 0xFFFFC44D);
-      return false;
+
+    if (sacrifice != null) {
+      slot = sacrifice.slotIndex;
+      _autoSell(sacrifice);
     }
+
     state.gold -= cost;
     state.totalSummons++;
     _addUnit(rollSummon(rng, state.luckLevel), slot, announce: true);
@@ -734,11 +788,18 @@ class LuckyDefenseGame extends FlameGame {
       state.showToast('다이아가 부족합니다', color: 0xFFFF5C6E);
       return false;
     }
-    final slot = _firstFreeSlot();
+
+    var slot = _firstFreeSlot();
     if (slot < 0) {
-      state.showToast('빈 슬롯이 없습니다 · 합성하거나 판매하세요', color: 0xFFFFC44D);
-      return false;
+      final sacrifice = _autoSellCandidate();
+      if (sacrifice == null) {
+        state.showToast('빈 슬롯이 없습니다 · 합성하거나 판매하세요', color: 0xFFFFC44D);
+        return false;
+      }
+      slot = sacrifice.slotIndex;
+      _autoSell(sacrifice);
     }
+
     state.gems -= Balance.highSummonGems;
     state.totalSummons++;
     _addUnit(rollHighSummon(rng, state.luckLevel), slot, announce: true);

@@ -39,6 +39,7 @@ class ControlPanel extends StatelessWidget {
                   luckLevel: state.luckLevel,
                   onTap: () => showCodexSheet(context, state.luckLevel),
                 ),
+              if (state.willAutoSell) _AutoSellNotice(state: state),
               const SizedBox(height: 8),
               _ActionRow(game: game),
               const SizedBox(height: 8),
@@ -47,6 +48,65 @@ class ControlPanel extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// 자리가 가득 찼을 때, 소환을 누르면 무엇이 팔려 나가는지 미리 알린다.
+///
+/// 유닛이 영구히 사라지는 동작이라 누르고 나서 알게 되면 곤란하다.
+class _AutoSellNotice extends StatelessWidget {
+  const _AutoSellNotice({required this.state});
+
+  final GameState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = state.autoSellRarity?.color ?? GameColors.text;
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: GameColors.gold.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: GameColors.gold.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          const Text('♻️', style: TextStyle(fontSize: 11)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: '자리 가득 · 소환하면 '),
+                  TextSpan(
+                    text: state.autoSellName ?? '',
+                    style: TextStyle(color: color, fontWeight: FontWeight.w900),
+                  ),
+                  const TextSpan(text: ' 자동 판매'),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: GameColors.sub,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '+${formatNumber(state.autoSellRefund)} G',
+            style: const TextStyle(
+              color: GameColors.gold,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -64,9 +124,9 @@ class _ActionRow extends StatelessWidget {
         Expanded(
           flex: 5,
           child: ActionButton(
-            icon: '🎲',
+            icon: state.willAutoSell ? '♻️' : '🎲',
             label: '소환',
-            sub: '${formatNumber(state.summonCost)} G',
+            sub: '${formatNumber(state.effectiveSummonCost)} G',
             color: GameColors.gold,
             filled: true,
             enabled: state.canSummon,

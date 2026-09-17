@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'data/balance.dart';
+import 'data/rarity.dart';
 import 'record_store.dart';
 
 enum GamePhase { ready, playing, gameOver }
@@ -36,6 +37,11 @@ class GameState extends ChangeNotifier {
   /// 지금 바로 합성 가능한 조합의 수.
   int mergeableGroups = 0;
 
+  /// 자리가 없을 때 자동으로 팔릴 유닛. 유닛이 하나도 없으면 null.
+  String? autoSellName;
+  Rarity? autoSellRarity;
+  int autoSellRefund = 0;
+
   int totalKills = 0;
   int totalSummons = 0;
   int totalMerges = 0;
@@ -61,9 +67,31 @@ class GameState extends ChangeNotifier {
   bool get isGameOver => phase == GamePhase.gameOver;
   int get summonCost => Balance.summonCost(unitCount);
   bool get slotsFull => unitCount >= slotCount && slotCount > 0;
-  bool get canSummon => gold >= summonCost && !slotsFull && !isGameOver;
+
+  /// 소환을 누르면 자동 판매가 함께 일어나는 상태인지.
+  bool get willAutoSell => slotsFull && autoSellName != null;
+
+  /// 자동 판매까지 감안한 실제 소환 비용.
+  ///
+  /// 한 기를 팔면 보유 수가 하나 줄어 소환 비용도 그만큼 내려간다.
+  int get effectiveSummonCost =>
+      willAutoSell ? Balance.summonCost(unitCount - 1) : summonCost;
+
+  bool get canSummon {
+    if (isGameOver) {
+      return false;
+    }
+    if (!slotsFull) {
+      return gold >= summonCost;
+    }
+    // 자리가 없으면 가장 낮은 등급을 판 값까지 합쳐 계산한다.
+    return willAutoSell && gold + autoSellRefund >= effectiveSummonCost;
+  }
+
   bool get canHighSummon =>
-      gems >= Balance.highSummonGems && !slotsFull && !isGameOver;
+      gems >= Balance.highSummonGems &&
+      !isGameOver &&
+      (!slotsFull || willAutoSell);
 
   int get atkCost => Balance.atkUpgradeCost(atkLevel);
   int get spdCost => Balance.spdUpgradeCost(spdLevel);
@@ -91,6 +119,9 @@ class GameState extends ChangeNotifier {
     started = true;
     unitCount = 0;
     mergeableGroups = 0;
+    autoSellName = null;
+    autoSellRarity = null;
+    autoSellRefund = 0;
     totalKills = 0;
     totalSummons = 0;
     totalMerges = 0;

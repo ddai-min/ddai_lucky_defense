@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:ddai_lucky_defense/game/data/balance.dart';
 import 'package:ddai_lucky_defense/game/data/rarity.dart';
+import 'package:ddai_lucky_defense/game/data/unit_catalog.dart';
 import 'package:ddai_lucky_defense/game/field_layout.dart';
 import 'package:ddai_lucky_defense/game/game_state.dart';
 import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
@@ -89,19 +90,146 @@ void main() {
     expect(game.units.length, 1);
   });
 
-  testWidgets('슬롯이 가득 차면 더 소환되지 않는다', (tester) async {
+  testWidgets('슬롯이 가득 차면 가장 낮은 등급을 팔고 그 자리에 소환한다', (tester) async {
     final game = await _boot(tester);
     game.startGame();
-    game.state.gold = 1 << 24;
+    final state = game.state;
+    state.gold = 1 << 24;
 
-    for (var i = 0; i < game.layout.slotCount + 5; i++) {
+    for (var i = 0; i < game.layout.slotCount; i++) {
+      game.summon();
+    }
+    await tester.pump();
+    expect(game.units.length, game.layout.slotCount);
+    expect(state.slotsFull, isTrue);
+    expect(state.willAutoSell, isTrue);
+
+    // 팔릴 유닛은 보유 중 가장 낮은 등급이다.
+    final lowest = game.units.map((u) => u.spec.rarity.index).reduce(math.min);
+    expect(state.autoSellRarity!.index, lowest);
+    expect(state.autoSellRefund, greaterThan(0));
+
+    // 한 기를 팔면 보유 수가 줄어 소환 비용도 내려간다.
+    expect(state.effectiveSummonCost, lessThan(state.summonCost));
+
+    final refund = state.autoSellRefund;
+    final cost = state.effectiveSummonCost;
+    final goldBefore = state.gold;
+    final soldSlot = game
+        .units[pickAutoSellIndex(game.units.map((u) => u.spec).toList())]
+        .slotIndex;
+
+    expect(state.canSummon, isTrue);
+    expect(game.summon(), isTrue);
+    await tester.pump();
+
+    // 칸 수는 그대로, 판 자리에 새 유닛이 들어간다.
+    expect(game.units.length, game.layout.slotCount);
+    expect(game.units.any((u) => u.slotIndex == soldSlot), isTrue);
+    expect(state.gold, goldBefore + refund - cost);
+    expect(state.totalSummons, game.layout.slotCount + 1);
+
+    // 계속 눌러도 칸 수는 유지된다.
+    for (var i = 0; i < 10; i++) {
+      game.summon();
+    }
+    await tester.pump();
+    expect(game.units.length, game.layout.slotCount);
+  });
+
+  testWidgets('팔아도 골드가 모자라면 자동 판매하지 않는다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    final state = game.state;
+    state.gold = 1 << 24;
+
+    for (var i = 0; i < game.layout.slotCount; i++) {
       game.summon();
     }
     await tester.pump();
 
-    expect(game.units.length, game.layout.slotCount);
-    expect(game.state.slotsFull, isTrue);
+    // 판 값을 더해도 비용에 못 미치게 만든다.
+    state.gold = 0;
+    expect(state.autoSellRefund, lessThan(state.effectiveSummonCost));
+    expect(state.canSummon, isFalse);
+
+    final before = game.units.length;
     expect(game.summon(), isFalse);
+    await tester.pump();
+    // 손해만 보고 끝나면 안 되므로 아무것도 팔리지 않는다.
+    expect(game.units.length, before);
+    expect(state.gold, 0);
+  });
+
+  testWidgets('고급소환도 자리가 없으면 자동 판매 후 소환한다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    final state = game.state;
+    state.gold = 1 << 24;
+
+    for (var i = 0; i < game.layout.slotCount; i++) {
+      game.summon();
+    }
+    await tester.pump();
+
+    state.gems = Balance.highSummonGems;
+    expect(state.canHighSummon, isTrue);
+    expect(game.highSummon(), isTrue);
+    await tester.pump();
+
+    expect(game.units.length, game.layout.slotCount);
+    expect(state.gems, 0);
+    // 고급소환은 유니크 이상만 나온다.
+    expect(
+      game.units.any((u) => u.spec.rarity.index >= Rarity.unique.index),
+      isTrue,
+    );
+  });
+
+  group('자동 판매 대상 고르기', () {
+    UnitSpec of(String id) => kUnitById[id]!;
+
+    test('등급이 가장 낮은 유닛을 고른다', () {
+      final specs = [of('skeleton'), of('golem'), of('slime'), of('treant')];
+      expect(pickAutoSellIndex(specs), 2);
+    });
+
+    test('3개 맞춰 둔 합성 세트는 건드리지 않는다', () {
+      final specs = [of('slime'), of('slime'), of('slime'), of('snail')];
+      expect(pickAutoSellIndex(specs), 3);
+    });
+
+    test('세트를 깨지 않는 쪽이면 보유 수가 많아도 그쪽을 판다', () {
+      final specs = [
+        of('slime'),
+        of('slime'),
+        of('slime'),
+        of('mushroom'),
+        of('mushroom'),
+        of('mushroom'),
+        of('mushroom'),
+      ];
+      expect(pickAutoSellIndex(specs), 3);
+    });
+
+    test('모두 세트뿐이면 보유 수가 적은 쪽을 판다', () {
+      final specs = [
+        of('slime'),
+        of('slime'),
+        of('slime'),
+        of('mushroom'),
+        of('mushroom'),
+        of('mushroom'),
+        of('mushroom'),
+        of('mushroom'),
+        of('mushroom'),
+      ];
+      expect(pickAutoSellIndex(specs), 0);
+    });
+
+    test('유닛이 없으면 -1', () {
+      expect(pickAutoSellIndex(const []), -1);
+    });
   });
 
   testWidgets('같은 유닛 3개를 모으면 상위 등급으로 합성된다', (tester) async {

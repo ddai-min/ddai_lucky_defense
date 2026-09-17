@@ -384,3 +384,53 @@ UnitSpec randomOfRarity(math.Random rng, Rarity rarity) {
   final pool = kUnitsByRarity[rarity]!;
   return pool[rng.nextInt(pool.length)];
 }
+
+/// 자리가 없을 때 자동으로 팔아 치울 유닛의 인덱스. 후보가 없으면 -1.
+///
+/// 고르는 순서는 이렇다.
+/// 1. 등급이 가장 낮은 것.
+/// 2. 그중 **팔아도 합성 횟수가 줄지 않는 것**. 3개 맞춰 둔 세트에서 하나를
+///    빼면 합성 한 번이 통째로 사라지므로, 어중간하게 남은 쪽을 먼저 판다.
+/// 3. 그래도 여럿이면 보유 수가 적은 것.
+///
+/// 순수 함수라 게임 상태 없이 그대로 검증할 수 있다.
+int pickAutoSellIndex(List<UnitSpec> specs) {
+  if (specs.isEmpty) {
+    return -1;
+  }
+
+  final counts = <String, int>{};
+  var lowest = Rarity.values.length;
+  for (final spec in specs) {
+    counts.update(spec.id, (v) => v + 1, ifAbsent: () => 1);
+    if (spec.rarity.index < lowest) {
+      lowest = spec.rarity.index;
+    }
+  }
+
+  var best = -1;
+  var bestBreaksMerge = true;
+  var bestCount = 1 << 30;
+
+  for (var i = 0; i < specs.length; i++) {
+    final spec = specs[i];
+    if (spec.rarity.index != lowest) {
+      continue;
+    }
+    final count = counts[spec.id]!;
+    // 보유 수가 3의 배수인 무리에서 하나를 빼면 합성 한 번을 잃는다.
+    final breaksMerge =
+        spec.rarity.next != null && count % Balance.mergeCount == 0;
+
+    final better =
+        best == -1 ||
+        (bestBreaksMerge && !breaksMerge) ||
+        (bestBreaksMerge == breaksMerge && count < bestCount);
+    if (better) {
+      best = i;
+      bestBreaksMerge = breaksMerge;
+      bestCount = count;
+    }
+  }
+  return best;
+}
