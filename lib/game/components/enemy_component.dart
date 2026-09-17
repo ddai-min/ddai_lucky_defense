@@ -47,8 +47,7 @@ class EnemyComponent extends PositionComponent {
   double _lane = 0;
   double _spawnPop = 0;
 
-  double get radius =>
-      game.layout.bandHeight * (isBoss ? 0.40 : 0.24);
+  double get radius => game.layout.bandHeight * (isBoss ? 0.40 : 0.24);
   double get pathDistance => progress * game.layout.path.length;
   double get hpRatio => (hp / maxHp).clamp(0.0, 1.0);
   bool get isSlowed => _slowTimer > 0;
@@ -246,8 +245,8 @@ class EnemyComponent extends PositionComponent {
     final fillColor = hpRatio > 0.5
         ? const Color(0xFF5BD98A)
         : hpRatio > 0.22
-            ? const Color(0xFFFFC44D)
-            : const Color(0xFFFF5C6E);
+        ? const Color(0xFFFFC44D)
+        : const Color(0xFFFF5C6E);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(-w / 2, top, w * hpRatio, h),

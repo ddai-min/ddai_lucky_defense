@@ -58,7 +58,7 @@ class FloatingText extends PositionComponent {
 /// 광역 공격 폭발 링.
 class SplashRing extends PositionComponent {
   SplashRing(Vector2 at, this.radius, this.color)
-      : super(position: at.clone(), priority: kFxPriority);
+    : super(position: at.clone(), priority: kFxPriority);
 
   final double radius;
   final Color color;
@@ -96,8 +96,7 @@ class SplashRing extends PositionComponent {
 
 /// 연쇄 번개.
 class ChainLightning extends PositionComponent {
-  ChainLightning(this.points, this.color)
-      : super(priority: kFxPriority + 2);
+  ChainLightning(this.points, this.color) : super(priority: kFxPriority + 2);
 
   final List<Vector2> points;
   final Color color;
@@ -233,7 +232,7 @@ class BurstEffect extends PositionComponent {
 /// 소환 성공 시 유닛 위로 뜨는 등급 카드.
 class SummonFlash extends PositionComponent {
   SummonFlash(Vector2 at, this.label, this.name, this.color, this.tier)
-      : super(position: at.clone(), priority: kFxPriority + 6);
+    : super(position: at.clone(), priority: kFxPriority + 6);
 
   final String label;
   final String name;
@@ -276,7 +275,10 @@ class SummonFlash extends PositionComponent {
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
       );
     }
-    canvas.drawRRect(rect, Paint()..color = fadeColor(const Color(0xFF10151F), alpha * 0.95));
+    canvas.drawRRect(
+      rect,
+      Paint()..color = fadeColor(const Color(0xFF10151F), alpha * 0.95),
+    );
     canvas.drawRRect(
       rect,
       Paint()
@@ -312,7 +314,7 @@ class SummonFlash extends PositionComponent {
 /// 웨이브/보스 등장 배너.
 class WaveBanner extends PositionComponent {
   WaveBanner(this.title, this.subtitle, this.color, Vector2 center)
-      : super(position: center.clone(), priority: kFxPriority + 8);
+    : super(position: center.clone(), priority: kFxPriority + 8);
 
   final String title;
   final String subtitle;

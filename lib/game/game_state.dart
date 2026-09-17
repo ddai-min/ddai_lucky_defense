@@ -157,7 +157,8 @@ class GameState extends ChangeNotifier {
 
 /// 지금이 위젯 빌드/레이아웃/페인트 단계인지.
 bool get isInBuildPhase =>
-    SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks;
+    SchedulerBinding.instance.schedulerPhase ==
+    SchedulerPhase.persistentCallbacks;
 
 /// 빌드 단계라면 프레임이 끝난 뒤에 실행한다.
 void runAfterFrame(VoidCallback action) {

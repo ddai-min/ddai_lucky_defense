@@ -37,11 +37,10 @@ class BackgroundComponent extends PositionComponent {
 
     final glowCenter = Offset(w * 0.5, -h * 0.25);
     _glowPaint = Paint()
-      ..shader = ui.Gradient.radial(
-        glowCenter,
-        h * 0.7,
-        const [Color(0x33627BFF), Color(0x00627BFF)],
-      );
+      ..shader = ui.Gradient.radial(glowCenter, h * 0.7, const [
+        Color(0x33627BFF),
+        Color(0x00627BFF),
+      ]);
 
     final grid = Path();
     final step = game.layout.bandHeight * 0.5;
@@ -203,12 +202,7 @@ class PathComponent extends PositionComponent {
         ..strokeWidth = 2.5
         ..color = color,
     );
-    drawTextCentered(
-      canvas,
-      emoji,
-      TextStyle(fontSize: r * 1.1),
-      c,
-    );
+    drawTextCentered(canvas, emoji, TextStyle(fontSize: r * 1.1), c);
   }
 }
 

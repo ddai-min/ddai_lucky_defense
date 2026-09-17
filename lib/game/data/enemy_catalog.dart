@@ -32,8 +32,7 @@ const List<EnemyKind> kBosses = <EnemyKind>[
   EnemyKind('공허의 지배자', '🌑', Color(0xFF8C7BE8)),
 ];
 
-EnemyKind mobForWave(int wave) =>
-    kMobs[((wave - 1) ~/ 2) % kMobs.length];
+EnemyKind mobForWave(int wave) => kMobs[((wave - 1) ~/ 2) % kMobs.length];
 
 EnemyKind bossForWave(int wave) =>
     kBosses[((wave ~/ 10) - 1).clamp(0, 1 << 30) % kBosses.length];

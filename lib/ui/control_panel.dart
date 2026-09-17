@@ -94,7 +94,9 @@ class _ActionRow extends StatelessWidget {
                 : '3개↑',
             color: GameColors.green,
             enabled: state.mergeableGroups > 0,
-            badge: state.mergeableGroups > 0 ? '${state.mergeableGroups}' : null,
+            badge: state.mergeableGroups > 0
+                ? '${state.mergeableGroups}'
+                : null,
             onTap: game.mergeAll,
           ),
         ),
@@ -230,9 +232,7 @@ class _UpgradeButton extends StatelessWidget {
             color: GameColors.panelSoft,
             borderRadius: BorderRadius.circular(11),
             border: Border.all(
-              color: enabled
-                  ? color.withValues(alpha: 0.6)
-                  : GameColors.border,
+              color: enabled ? color.withValues(alpha: 0.6) : GameColors.border,
             ),
           ),
           child: Column(
@@ -371,21 +371,19 @@ class _RatesStrip extends StatelessWidget {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Row(
-              children: [
-                for (var i = 0; i < rates.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 7),
-                  Text(
-                    '${Rarity.values[i].label} ${rates[i].toStringAsFixed(
-                      rates[i] < 10 ? 1 : 0,
-                    )}%',
-                    style: TextStyle(
-                      color: Rarity.values[i].color,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
+                children: [
+                  for (var i = 0; i < rates.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 7),
+                    Text(
+                      '${Rarity.values[i].label} ${rates[i].toStringAsFixed(rates[i] < 10 ? 1 : 0)}%',
+                      style: TextStyle(
+                        color: Rarity.values[i].color,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
               ),
             ),
           ],
@@ -536,9 +534,7 @@ class _MiniButton extends StatelessWidget {
               ? color.withValues(alpha: 0.18)
               : Colors.black.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-            color: enabled ? color : GameColors.border,
-          ),
+          border: Border.all(color: enabled ? color : GameColors.border),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

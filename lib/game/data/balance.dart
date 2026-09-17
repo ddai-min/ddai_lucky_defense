@@ -51,8 +51,7 @@ class Balance {
   static const int bossEvery = 10;
   static const int rushEvery = 5;
 
-  static double enemyHp(int wave) =>
-      55 * math.pow(1.225, wave - 1).toDouble();
+  static double enemyHp(int wave) => 55 * math.pow(1.225, wave - 1).toDouble();
 
   static int enemyCount(int wave) => math.min(32, 8 + (wave * 0.55).floor());
 

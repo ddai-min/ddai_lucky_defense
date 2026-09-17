@@ -19,11 +19,7 @@ class ProjectileComponent extends PositionComponent {
     required this.speed,
     required this.radius,
     required this.onHit,
-  }) : super(
-          position: origin.clone(),
-          priority: 30,
-          anchor: Anchor.center,
-        );
+  }) : super(position: origin.clone(), priority: 30, anchor: Anchor.center);
 
   final LuckyDefenseGame game;
   EnemyComponent? target;

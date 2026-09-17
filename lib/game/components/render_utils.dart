@@ -9,7 +9,8 @@ final LinkedHashMap<String, TextPainter> _painterCache =
 
 /// 반복 호출되는 텍스트(이모지·숫자)의 TextPainter를 재사용한다.
 TextPainter cachedPainter(String text, TextStyle style) {
-  final key = '$text|${style.fontSize}|${style.color?.toARGB32()}'
+  final key =
+      '$text|${style.fontSize}|${style.color?.toARGB32()}'
       '|${style.fontWeight?.value}|${style.letterSpacing}';
   final hit = _painterCache[key];
   if (hit != null) {
@@ -69,14 +70,10 @@ String formatNumber(num value) {
   }
   if (v >= 1000) {
     final s = value.round().toString();
-    return s.replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+$)'),
-      (m) => '${m[1]},',
-    );
+    return s.replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
   }
   return value.round().toString();
 }
-
 
 final LinkedHashMap<String, ui.Shader> _shaderCache =
     LinkedHashMap<String, ui.Shader>();
@@ -115,10 +112,9 @@ ui.Shader orbShader(Color color, double radius) {
 ui.Shader badgeShader(Color from, Color to, double half) {
   return _cacheShader(
     'badge|${from.toARGB32()}|${to.toARGB32()}|${half.toStringAsFixed(1)}',
-    () => ui.Gradient.linear(
-      Offset(-half, -half),
-      Offset(half, half),
-      [from, to],
-    ),
+    () => ui.Gradient.linear(Offset(-half, -half), Offset(half, half), [
+      from,
+      to,
+    ]),
   );
 }

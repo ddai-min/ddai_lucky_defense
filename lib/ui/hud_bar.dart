@@ -17,16 +17,16 @@ class HudBar extends StatelessWidget {
       animation: state,
       builder: (context, _) {
         final isBossNext = (state.wave + 1) % Balance.bossEvery == 0;
-        final progress =
-            (1 - state.waveCountdown / Balance.waveInterval).clamp(0.0, 1.0);
+        final progress = (1 - state.waveCountdown / Balance.waveInterval).clamp(
+          0.0,
+          1.0,
+        );
 
         return Container(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
           decoration: const BoxDecoration(
             color: GameColors.panel,
-            border: Border(
-              bottom: BorderSide(color: GameColors.border),
-            ),
+            border: Border(bottom: BorderSide(color: GameColors.border)),
           ),
           child: Column(
             children: [
@@ -46,29 +46,29 @@ class HudBar extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerRight,
                       child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        StatChip(
-                          icon: '🪙',
-                          value: formatNumber(state.gold),
-                          color: GameColors.gold,
-                        ),
-                        const SizedBox(width: 6),
-                        StatChip(
-                          icon: '💎',
-                          value: '${state.gems}',
-                          color: GameColors.gem,
-                        ),
-                        const SizedBox(width: 6),
-                        StatChip(
-                          icon: '🧩',
-                          value: '${state.unitCount}/${state.slotCount}',
-                          color: state.slotsFull
-                              ? GameColors.life
-                              : GameColors.sub,
-                          compact: true,
-                        ),
-                      ],
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          StatChip(
+                            icon: '🪙',
+                            value: formatNumber(state.gold),
+                            color: GameColors.gold,
+                          ),
+                          const SizedBox(width: 6),
+                          StatChip(
+                            icon: '💎',
+                            value: '${state.gems}',
+                            color: GameColors.gem,
+                          ),
+                          const SizedBox(width: 6),
+                          StatChip(
+                            icon: '🧩',
+                            value: '${state.unitCount}/${state.slotCount}',
+                            color: state.slotsFull
+                                ? GameColors.life
+                                : GameColors.sub,
+                            compact: true,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -169,11 +169,7 @@ class _WaveBadge extends StatelessWidget {
           ),
           if (best > 0) ...[
             const SizedBox(width: 7),
-            Container(
-              width: 1,
-              height: 12,
-              color: GameColors.border,
-            ),
+            Container(width: 1, height: 12, color: GameColors.border),
             const SizedBox(width: 6),
             const Text('🏆', style: TextStyle(fontSize: 9)),
             const SizedBox(width: 3),

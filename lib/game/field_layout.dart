@@ -5,8 +5,7 @@ import 'package:flame/components.dart';
 
 /// 몬스터가 따라 걷는 꺾은선 경로. 거리(px) 기준으로 위치를 조회한다.
 class EnemyPath {
-  EnemyPath(this.points)
-      : assert(points.length >= 2, '경로는 최소 2개의 점이 필요합니다.') {
+  EnemyPath(this.points) : assert(points.length >= 2, '경로는 최소 2개의 점이 필요합니다.') {
     _cumulative = List<double>.filled(points.length, 0);
     for (var i = 1; i < points.length; i++) {
       _cumulative[i] = _cumulative[i - 1] + points[i].distanceTo(points[i - 1]);
@@ -91,8 +90,7 @@ class FieldLayout {
       for (var i = 0; i < lanes; i++) marginTop + bandHeight * (2 * i + 0.5),
     ];
     final rowY = <double>[
-      for (var j = 0; j < slotRows; j++)
-        marginTop + bandHeight * (2 * j + 1.5),
+      for (var j = 0; j < slotRows; j++) marginTop + bandHeight * (2 * j + 1.5),
     ];
 
     // 지그재그(부스트로페돈) 경로: 좌우를 번갈아 훑으며 아래로 내려간다.
@@ -122,10 +120,7 @@ class FieldLayout {
       cols = 24 ~/ slotRows;
     }
     slotCols = cols;
-    slotSize = math.min(
-      maxSlot,
-      available / (1 + 1.06 * (slotCols - 1)),
-    );
+    slotSize = math.min(maxSlot, available / (1 + 1.06 * (slotCols - 1)));
     final pad = pathWidth / 2 + slotSize / 2 + 6;
     final areaLeft = left + pad;
     final areaRight = right - pad;

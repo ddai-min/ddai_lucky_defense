@@ -223,7 +223,9 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.4
-          ..color = const Color(0xFF6BFFB0).withValues(alpha: 0.45 + glow * 0.5),
+          ..color = const Color(
+            0xFF6BFFB0,
+          ).withValues(alpha: 0.45 + glow * 0.5),
       );
     }
   }
@@ -239,7 +241,8 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
     canvas.drawCircle(
       c,
       r,
-      Paint()..color = ready ? const Color(0xFF23C77E) : const Color(0xFF2B3346),
+      Paint()
+        ..color = ready ? const Color(0xFF23C77E) : const Color(0xFF2B3346),
     );
     canvas.drawCircle(
       c,

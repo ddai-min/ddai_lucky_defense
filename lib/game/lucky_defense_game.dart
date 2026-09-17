@@ -29,8 +29,8 @@ class LuckyDefenseGame extends FlameGame {
     required this.state,
     math.Random? random,
     RecordStore? records,
-  })  : rng = random ?? math.Random(),
-        _records = records ?? PrefsRecordStore();
+  }) : rng = random ?? math.Random(),
+       _records = records ?? PrefsRecordStore();
 
   final GameState state;
   final math.Random rng;
@@ -69,9 +69,9 @@ class LuckyDefenseGame extends FlameGame {
   double _spawnLap = 20;
   bool _spawnIsBoss = false;
 
-  FieldLayout get layout =>
-      _layout ??= FieldLayout(Vector2(size.x > 10 ? size.x : 400,
-          size.y > 10 ? size.y : 640));
+  FieldLayout get layout => _layout ??= FieldLayout(
+    Vector2(size.x > 10 ? size.x : 400, size.y > 10 ? size.y : 640),
+  );
 
   @override
   Color backgroundColor() => const Color(0xFF070A14);
@@ -224,7 +224,8 @@ class LuckyDefenseGame extends FlameGame {
       return;
     }
     _shakeTime -= dt;
-    final k = _shakeMagnitude *
+    final k =
+        _shakeMagnitude *
         math.max(0, _shakeTime / 0.35) *
         layout.bandHeight *
         0.16;
@@ -270,20 +271,24 @@ class LuckyDefenseGame extends FlameGame {
       _pendingSpawns = 1;
       _spawnInterval = 0;
       fieldRoot.add(
-        WaveBanner(kind.name, 'BOSS · WAVE $w', const Color(0xFFFF5C6E), center),
+        WaveBanner(
+          kind.name,
+          'BOSS · WAVE $w',
+          const Color(0xFFFF5C6E),
+          center,
+        ),
       );
       shake(0.5);
     } else {
       final kind = mobForWave(w);
       _spawnKind = kind;
-      _spawnHp =
-          Balance.enemyHp(w) * (isRush ? Balance.rushHpMultiplier : 1.0);
+      _spawnHp = Balance.enemyHp(w) * (isRush ? Balance.rushHpMultiplier : 1.0);
       _spawnLap =
           Balance.lapSeconds(w) * (isRush ? Balance.rushLapMultiplier : 1.0);
       _spawnIsBoss = false;
-      final count = (Balance.enemyCount(w) *
-              (isRush ? Balance.rushCountMultiplier : 1.0))
-          .round();
+      final count =
+          (Balance.enemyCount(w) * (isRush ? Balance.rushCountMultiplier : 1.0))
+              .round();
       _pendingSpawns = count;
       _spawnInterval = math.min(0.55, Balance.waveInterval * 0.62 / count);
       fieldRoot.add(
@@ -454,9 +459,7 @@ class LuckyDefenseGame extends FlameGame {
 
       case AttackStyle.execute:
         victim.takeDamage(damage, color: accent);
-        if (!victim.dead &&
-            !victim.isBoss &&
-            rng.nextDouble() < spec.param) {
+        if (!victim.dead && !victim.isBoss && rng.nextDouble() < spec.param) {
           victim.execute();
         }
 
@@ -908,7 +911,8 @@ class LuckyDefenseGame extends FlameGame {
 
   void restart() {
     for (final c in fieldRoot.children.toList()) {
-      final permanent = identical(c, _background) ||
+      final permanent =
+          identical(c, _background) ||
           identical(c, _tapCatcher) ||
           identical(c, _pathComponent) ||
           identical(c, _slotLayer) ||
