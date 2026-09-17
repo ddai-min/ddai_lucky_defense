@@ -330,8 +330,10 @@ int _autoSellIndex(List<Unit> units) {
 
 const int _seeds = 80;
 
-double _medianEnd(SimConfig c) {
-  final ends = [for (var s = 0; s < _seeds; s++) runOnce(s, c).endedAt]..sort();
+double _medianEnd(SimConfig c, {int maxWave = 80}) {
+  final ends = [
+    for (var s = 0; s < _seeds; s++) runOnce(s, c, maxWave: maxWave).endedAt,
+  ]..sort();
   return (ends[(_seeds - 1) ~/ 2] + ends[_seeds ~/ 2]) / 2;
 }
 
@@ -384,9 +386,12 @@ void _report() {
     } else {
       stdout.writeln(
         '  ${_pad(mode.label, 7)}${Balance.clearWave}웨이브 도달률  '
-        '숙련자 ${_clearRate(skilled).toStringAsFixed(0)}% · '
-        '라이트 ${_clearRate(casual).toStringAsFixed(0)}%'
-        '   중반 최저 여유 ${_minHeadroom(casual).toStringAsFixed(2)}',
+        '전체 ${_clearRateAcrossSkill(mode).toStringAsFixed(0)}% '
+        '(숙련자 ${_clearRate(skilled).toStringAsFixed(0)}% · '
+        '라이트 ${_clearRate(casual).toStringAsFixed(0)}%)'
+        '   중반 최저 여유 ${_minHeadroom(casual).toStringAsFixed(2)}'
+        ' · 라이트가 멈추는 웨이브 '
+        '${_medianEnd(casual, maxWave: Balance.clearWave).toStringAsFixed(0)}',
       );
     }
   }
@@ -410,6 +415,31 @@ double _minHeadroom(SimConfig c) {
     worst = math.min(worst, list[list.length ~/ 2]);
   }
   return worst;
+}
+
+/// 실력 분포 전체에 걸친 도달률.
+///
+/// 커버리지를 한 값으로 고정해 재면 도달률이 100% 아니면 0% 로 튄다. 후반에는
+/// 누구나 «초월» 에서 멈춰 전투력이 같아지기 때문에, 그 한 사람이 깨느냐 마느냐로
+/// 결과가 갈리는 탓이다. 실력을 [kCasualCoverage] ~ [kSkilledCoverage] 사이에서
+/// 고르게 훑어야 «몇 %가 깨는가» 가 제대로 나온다.
+double _clearRateAcrossSkill(GameMode mode) {
+  const steps = 8;
+  final runs = _seeds ~/ 2;
+  var cleared = 0;
+  for (var i = 0; i < steps; i++) {
+    final coverage =
+        kCasualCoverage +
+        (kSkilledCoverage - kCasualCoverage) * i / (steps - 1);
+    final config = SimConfig(mode: mode, coverage: coverage);
+    for (var s = 0; s < runs; s++) {
+      if (runOnce(s, config, maxWave: Balance.clearWave).endedAt >=
+          Balance.clearWave) {
+        cleared++;
+      }
+    }
+  }
+  return cleared / (steps * runs) * 100;
 }
 
 /// 클리어 모드에서 마지막 웨이브까지 간 판의 비율.
