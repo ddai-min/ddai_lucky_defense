@@ -41,6 +41,9 @@ class LuckyDefenseApp extends StatelessWidget {
   }
 }
 
+/// 세로 화면 게임이므로 넓은 화면에서는 이 너비로 가운데 세운다.
+const double _maxAppWidth = 480;
+
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key, this.gameFactory});
 
@@ -83,43 +86,64 @@ class _GameScreenState extends State<GameScreen> {
       body: SafeArea(
         child: MediaQuery.withClampedTextScaling(
           maxScaleFactor: 1.1,
-          child: Stack(
-            children: [
-              Column(
-                children: [
-                  HudBar(state: state),
-                  Expanded(
+          // 세로 화면 기준으로 만든 게임이라, 넓은 화면(웹·태블릿)에서는
+          // 폰 너비로 가운데 세워 둔다. 그대로 늘리면 필드가 납작해지고
+          // 버튼만 길어진다.
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _maxAppWidth),
+              child: SizedBox.expand(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: constraints.maxWidth >= _maxAppWidth
+                          ? const Border.symmetric(
+                              vertical: BorderSide(color: GameColors.border),
+                            )
+                          : null,
+                    ),
                     child: Stack(
                       children: [
-                        GameWidget<LuckyDefenseGame>(game: game),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 10,
-                          child: _Toast(state: state),
+                        Column(
+                          children: [
+                            HudBar(state: state),
+                            Expanded(
+                              child: Stack(
+                                children: [
+                                  GameWidget<LuckyDefenseGame>(game: game),
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 10,
+                                    child: _Toast(state: state),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ControlPanel(game: game),
+                          ],
+                        ),
+                        // 인트로/결과 화면은 HUD와 조작 패널까지 덮는다.
+                        Positioned.fill(
+                          child: AnimatedBuilder(
+                            animation: state,
+                            builder: (context, _) {
+                              if (!state.started) {
+                                return IntroOverlay(game: game);
+                              }
+                              if (state.isGameOver) {
+                                return GameOverOverlay(game: game);
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  ControlPanel(game: game),
-                ],
-              ),
-              // 인트로/결과 화면은 HUD와 조작 패널까지 덮는다.
-              Positioned.fill(
-                child: AnimatedBuilder(
-                  animation: state,
-                  builder: (context, _) {
-                    if (!state.started) {
-                      return IntroOverlay(game: game);
-                    }
-                    if (state.isGameOver) {
-                      return GameOverOverlay(game: game);
-                    }
-                    return const SizedBox.shrink();
-                  },
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

@@ -6,6 +6,7 @@ import 'package:ddai_lucky_defense/game/game_state.dart';
 import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
 import 'package:ddai_lucky_defense/game/record_store.dart';
 import 'package:ddai_lucky_defense/main.dart';
+import 'package:ddai_lucky_defense/ui/hud_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +18,8 @@ Future<LuckyDefenseGame> _boot(
   RecordStore? records,
 }) async {
   tester.view
-    ..physicalSize = const Size(1170, 2532) // iPhone 13 Pro
+    ..physicalSize =
+        const Size(1170, 2532) // iPhone 13 Pro
     ..devicePixelRatio = 3;
   addTearDown(tester.view.reset);
 
@@ -358,7 +360,8 @@ void main() {
 
   testWidgets('휴대폰 화면에서 앱 전체가 예외 없이 렌더링된다', (tester) async {
     tester.view
-      ..physicalSize = const Size(1170, 2532) // iPhone 13 Pro
+      ..physicalSize =
+          const Size(1170, 2532) // iPhone 13 Pro
       ..devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
@@ -380,9 +383,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('넓은 화면에서는 폰 너비로 가운데 세운다', (tester) async {
+    tester.view
+      ..physicalSize =
+          const Size(1600, 1000) // 데스크톱 브라우저
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const LuckyDefenseApp());
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    // HUD 가 화면 전체로 늘어나지 않고 480 폭 안에 들어간다.
+    final hud = tester.getSize(find.byType(HudBar));
+    expect(hud.width, lessThanOrEqualTo(480));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('작은 화면에서도 패널이 넘치지 않는다', (tester) async {
     tester.view
-      ..physicalSize = const Size(640, 1136) // iPhone SE 1세대
+      ..physicalSize =
+          const Size(640, 1136) // iPhone SE 1세대
       ..devicePixelRatio = 2;
     addTearDown(tester.view.reset);
 
