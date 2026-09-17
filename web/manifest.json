@@ -1,11 +1,11 @@
 {
-    "name": "ddai_lucky_defense",
-    "short_name": "ddai_lucky_defense",
+    "name": "운빨 디펜스",
+    "short_name": "운빨 디펜스",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#070A14",
+    "theme_color": "#070A14",
+    "description": "뽑고, 합치고, 막아내세요. 뽑기 기반 랜덤 디펜스 게임.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

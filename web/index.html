@@ -1,46 +1,125 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    루트가 아닌 경로로 서비스할 때 아래 값이 base 경로가 된다.
+    `flutter build web --base-href` 인자로 치환된다.
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="뽑고, 합치고, 막아내세요. 운빨 디펜스 — 뽑기 기반 랜덤 디펜스 게임.">
+  <meta name="theme-color" content="#070A14">
 
-  <!-- iOS meta tags & icons -->
+  <!-- 링크를 공유했을 때 보이는 미리보기 -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="운빨 디펜스">
+  <meta property="og:description" content="뽑고, 합치고, 막아내세요.">
+
+  <!-- iOS -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="ddai_lucky_defense">
+  <meta name="apple-mobile-web-app-title" content="운빨 디펜스">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>ddai_lucky_defense</title>
+  <title>운빨 디펜스</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #070A14;
+      overscroll-behavior: none;
+    }
+
+    /*
+      Flutter 웹은 첫 프레임까지 몇 초가 걸린다(엔진 wasm + 글꼴).
+      그동안 빈 검은 화면만 보이면 «안 열리는 페이지» 처럼 보이므로,
+      HTML/CSS 만으로 즉시 뜨는 로딩 화면을 깔아 둔다.
+    */
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      color: #E6EAF4;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+        "Malgun Gothic", "Noto Sans KR", sans-serif;
+      transition: opacity 0.25s ease;
+    }
+
+    #loading .dice {
+      font-size: 44px;
+      animation: roll 1.6s ease-in-out infinite;
+    }
+
+    #loading .title {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+
+    #loading .sub {
+      font-size: 12px;
+      font-weight: 600;
+      color: #8A94AC;
+    }
+
+    #loading .bar {
+      width: 160px;
+      height: 4px;
+      border-radius: 2px;
+      background: #1A2235;
+      overflow: hidden;
+    }
+
+    #loading .bar::after {
+      content: "";
+      display: block;
+      width: 40%;
+      height: 100%;
+      border-radius: 2px;
+      background: #6C8CFF;
+      animation: slide 1.2s ease-in-out infinite;
+    }
+
+    @keyframes roll {
+      0%, 100% { transform: rotate(-12deg) translateY(0); }
+      50% { transform: rotate(12deg) translateY(-8px); }
+    }
+
+    @keyframes slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(250%); }
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="loading">
+    <div class="dice">🎲</div>
+    <div class="title">운빨 디펜스</div>
+    <div class="sub">뽑고, 합치고, 막아내세요</div>
+    <div class="bar"></div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <script>
+    // 첫 프레임이 그려지면 로딩 화면을 걷어낸다.
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('loading');
+      if (!el) return;
+      el.style.opacity = '0';
+      setTimeout(function () { el.remove(); }, 250);
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
