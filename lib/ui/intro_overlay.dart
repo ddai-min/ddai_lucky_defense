@@ -174,27 +174,29 @@ class _ModeCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text(mode.icon, style: const TextStyle(fontSize: 13)),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
+            // 카드 셋이 나란히 서므로 320pt 같은 좁은 화면에서는 폭이 빠듯하다.
+            // 말줄임표로 잘리는 대신 통째로 조금 줄어들게 한다.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                children: [
+                  Text(mode.icon, style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 5),
+                  Text(
                     mode.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: selected ? Colors.white : GameColors.sub,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                ),
-                if (selected) ...[
-                  const SizedBox(width: 4),
-                  Icon(Icons.check_circle_rounded, size: 13, color: color),
+                  if (selected) ...[
+                    const SizedBox(width: 4),
+                    Icon(Icons.check_circle_rounded, size: 13, color: color),
+                  ],
                 ],
-              ],
+              ),
             ),
             const SizedBox(height: 3),
             Text(

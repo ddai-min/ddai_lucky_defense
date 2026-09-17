@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'game_mode.dart';
+
 /// 게임 밸런스 상수 모음. 수치 조정은 전부 이 파일에서 한다.
 class Balance {
   Balance._();
@@ -54,19 +56,43 @@ class Balance {
   /// 클리어 모드가 끝나는 웨이브.
   static const int clearWave = 100;
 
-  /// 몬스터 체력.
+  /// 몬스터 체력. 난이도는 이 곡선 하나로만 갈린다.
   ///
   /// 증가율이 플레이어 전투력 증가율(실측 웨이브당 약 +13.5%)보다 훨씬 가파르면
   /// 중반부터 격차가 복리로 벌어져 아무것도 손쓸 수 없게 된다. 대신 첫 웨이브
   /// 체력을 올려, 초반이 손 놓고 있어도 되는 구간이 되지 않도록 한다.
+  static double enemyHp(int wave, GameMode mode) {
+    switch (mode) {
+      // 쉬움: [clearWave] 까지 갈 수 있게 완만한 지수 곡선.
+      case GameMode.easy:
+        return 90 * math.pow(1.10, wave - 1).toDouble();
+      // 보통: 같은 웨이브에서 끝나되 중반이 팽팽하도록 꺾인 곡선.
+      // 증가율을 조금만 더 올리면(1.19) 90웨이브 언저리에서 막혀 도달률이
+      // 0% 로 떨어진다. 후반에는 플레이어가 한계에 닿아 더 셀 수 없기 때문에
+      // 이 근처가 «깰 수 있는 가장 빡빡한 곡선» 이다.
+      case GameMode.normal:
+        return _taperedHp(wave, growth: 1.18, taper: 0.9875);
+      // 무한: «얼마나 멀리 가나» 가 전부라 끝까지 가파르다.
+      case GameMode.endless:
+        return 90 * math.pow(1.17, wave - 1).toDouble();
+    }
+  }
+
+  /// 증가율이 웨이브마다 [taper] 배씩 꺾이는 체력 곡선.
   ///
-  /// 모드마다 곡선이 다르다. 클리어 모드는 [clearWave] 에서 끝을 보라고 만든
-  /// 모드이므로 거기까지 갈 수 있게 완만하고, 무한 모드는 «얼마나 멀리 가나» 가
-  /// 전부라 더 가파르다. 같은 곡선을 쓰면 둘 중 하나가 망가진다 — 무한 모드에
-  /// 맞추면 100웨이브를 아무도 못 깨고, 클리어 모드에 맞추면 무한 모드가
-  /// 100웨이브까지 밋밋해진다.
-  static double enemyHp(int wave, {required bool endless}) =>
-      90 * math.pow(endless ? 1.17 : 1.10, wave - 1).toDouble();
+  /// 플레이어 전투력은 «초월» 에서 멈추므로 후반에는 더 늘지 않는다. 체력만
+  /// 끝까지 같은 비율로 올리면 중반 50웨이브가 손 놓아도 되는 구간이 되고
+  /// 마지막 몇 웨이브만 난이도가 된다(쉬움 곡선이 딱 그렇다 — 중반 여유가
+  /// 10~19배까지 벌어진다). 증가율을 조금씩 꺾으면 여유가 처음부터 끝까지
+  /// 비슷하게 유지된다.
+  static double _taperedHp(
+    int wave, {
+    required double growth,
+    required double taper,
+  }) {
+    final steps = (1 - math.pow(taper, wave - 1)) / (1 - taper);
+    return 90 * math.pow(growth, steps).toDouble();
+  }
 
   static int enemyCount(int wave) => math.min(32, 8 + (wave * 0.55).floor());
 

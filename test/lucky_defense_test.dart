@@ -310,7 +310,7 @@ void main() {
 
   testWidgets('클리어 모드는 ${Balance.clearWave}웨이브를 막아내면 끝난다', (tester) async {
     final game = await _boot(tester);
-    game.setMode(GameMode.clear);
+    game.setMode(GameMode.easy);
     game.startGame();
     final state = game.state;
     state
@@ -369,9 +369,10 @@ void main() {
     final state = game.state;
 
     // 기본은 클리어 모드.
-    expect(state.mode, GameMode.clear);
-    expect(find.text(GameMode.clear.label), findsOneWidget);
-    expect(find.text(GameMode.endless.label), findsOneWidget);
+    expect(state.mode, GameMode.easy);
+    for (final mode in GameMode.values) {
+      expect(find.text(mode.label), findsOneWidget, reason: mode.name);
+    }
 
     await tester.tap(find.text(GameMode.endless.label));
     await tester.pump();
@@ -870,6 +871,10 @@ void main() {
     await tester.pumpWidget(const LuckyDefenseApp());
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 16));
+    }
+    // 모드 카드 셋이 나란히 서도 넘치지 않는다.
+    for (final mode in GameMode.values) {
+      expect(find.text(mode.label), findsOneWidget, reason: mode.name);
     }
     expect(tester.takeException(), isNull);
   });

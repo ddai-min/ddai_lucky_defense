@@ -20,6 +20,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:ddai_lucky_defense/game/data/balance.dart';
+import 'package:ddai_lucky_defense/game/data/game_mode.dart';
 
 /// 등급별 유닛 종류 수(노말 ~ 초월).
 const List<int> kTypesPerRarity = [4, 4, 4, 4, 4, 3, 1];
@@ -39,7 +40,7 @@ class SimConfig {
     this.label = '현재',
     this.coverage = kSkilledCoverage,
     this.upgradeShare = 0.45,
-    this.endless = true,
+    this.mode = GameMode.endless,
     this.enemyHp,
     this.summonCost,
     this.damage,
@@ -55,8 +56,8 @@ class SimConfig {
   final String label;
   final double coverage;
 
-  /// 무한 모드인지. 체력 곡선이 모드마다 다르다.
-  final bool endless;
+  /// 플레이 방식. 체력 곡선이 모드마다 다르다.
+  final GameMode mode;
 
   /// 웨이브마다 들어온 골드 중 강화에 쓰는 비율.
   final double upgradeShare;
@@ -74,17 +75,16 @@ class SimConfig {
   /// 참이면 «같은 등급 아무 3개» 로 합성한다(현재 규칙은 같은 유닛 3개).
   final bool mergeAnyOfRarity;
 
-  double hpAt(int wave) =>
-      enemyHp?.call(wave) ?? Balance.enemyHp(wave, endless: endless);
+  double hpAt(int wave) => enemyHp?.call(wave) ?? Balance.enemyHp(wave, mode);
   int costAt(int units) => summonCost?.call(units) ?? Balance.summonCost(units);
   List<double> get damageTable => damage ?? Balance.damage;
 
-  SimConfig copyWith({String? label, double? coverage, bool? endless}) =>
+  SimConfig copyWith({String? label, double? coverage, GameMode? mode}) =>
       SimConfig(
         label: label ?? this.label,
         coverage: coverage ?? this.coverage,
         upgradeShare: upgradeShare,
-        endless: endless ?? this.endless,
+        mode: mode ?? this.mode,
         enemyHp: enemyHp,
         summonCost: summonCost,
         damage: damage,
@@ -350,20 +350,14 @@ String _pad(String s, int width) {
 }
 
 void _report() {
-  const skilled = SimConfig();
-  final casual = skilled.copyWith(coverage: kCasualCoverage);
-  final clearSkilled = skilled.copyWith(endless: false);
-  final clearCasual = casual.copyWith(endless: false);
-
   stdout.writeln('운빨 디펜스 밸런스 리포트');
-  stdout.writeln('─' * 58);
-  for (final endless in [true, false]) {
-    double hp(int w) => Balance.enemyHp(w, endless: endless);
+  stdout.writeln('─' * 62);
+  for (final mode in GameMode.values) {
+    double hp(int w) => Balance.enemyHp(w, mode);
     stdout.writeln(
-      '${endless ? '무한  ' : '클리어'} 체력  '
+      '${_pad(mode.label, 7)}체력  '
       '1웨 ${_num(hp(1))} · 30웨 ${_num(hp(30))} · '
-      '60웨 ${_num(hp(60))} · 100웨 ${_num(hp(100))}  '
-      '(×${(hp(11) / hp(10)).toStringAsFixed(3)}/웨이브)',
+      '60웨 ${_num(hp(60))} · 100웨 ${_num(hp(100))}',
     );
   }
   stdout.writeln(
@@ -377,17 +371,45 @@ void _report() {
   );
   stdout.writeln('슬롯          $kSlots칸');
   stdout.writeln('');
-  stdout.writeln(
-    '무한 모드 생존 웨이브 ($_seeds판 중앙값)   '
-    '숙련자 ${_medianEnd(skilled).toStringAsFixed(0)} · '
-    '라이트 ${_medianEnd(casual).toStringAsFixed(0)}',
-  );
-  stdout.writeln('');
-  stdout.writeln(
-    '클리어 모드 ${Balance.clearWave}웨이브 도달률   '
-    '숙련자 ${_clearRate(clearSkilled).toStringAsFixed(0)}% · '
-    '라이트 ${_clearRate(clearCasual).toStringAsFixed(0)}%',
-  );
+  stdout.writeln('$_seeds판 중앙값');
+  for (final mode in GameMode.values) {
+    final skilled = const SimConfig().copyWith(mode: mode);
+    final casual = skilled.copyWith(coverage: kCasualCoverage);
+    if (mode.isEndless) {
+      stdout.writeln(
+        '  ${_pad(mode.label, 7)}생존 웨이브   '
+        '숙련자 ${_medianEnd(skilled).toStringAsFixed(0)} · '
+        '라이트 ${_medianEnd(casual).toStringAsFixed(0)}',
+      );
+    } else {
+      stdout.writeln(
+        '  ${_pad(mode.label, 7)}${Balance.clearWave}웨이브 도달률  '
+        '숙련자 ${_clearRate(skilled).toStringAsFixed(0)}% · '
+        '라이트 ${_clearRate(casual).toStringAsFixed(0)}%'
+        '   중반 최저 여유 ${_minHeadroom(casual).toStringAsFixed(2)}',
+      );
+    }
+  }
+}
+
+/// 10~90웨이브 구간에서 여유가 가장 빠듯했던 지점. 1.0 에 가까울수록 팽팽하다.
+double _minHeadroom(SimConfig c) {
+  final byWave = <int, List<double>>{};
+  for (var s = 0; s < _seeds; s++) {
+    for (final snap in runOnce(s, c, maxWave: Balance.clearWave).waves) {
+      byWave.putIfAbsent(snap.wave, () => []).add(snap.headroom);
+    }
+  }
+  var worst = double.infinity;
+  for (var w = 10; w <= 90; w++) {
+    final list = byWave[w];
+    if (list == null || list.length < _seeds / 2) {
+      continue;
+    }
+    list.sort();
+    worst = math.min(worst, list[list.length ~/ 2]);
+  }
+  return worst;
 }
 
 /// 클리어 모드에서 마지막 웨이브까지 간 판의 비율.
@@ -402,11 +424,11 @@ double _clearRate(SimConfig c) {
   return cleared / _seeds * 100;
 }
 
-void _curve() {
-  const skilled = SimConfig();
+void _curve(GameMode mode) {
+  final skilled = const SimConfig().copyWith(mode: mode);
   final byWave = <int, List<double>>{};
   for (var s = 0; s < _seeds; s++) {
-    for (final snap in runOnce(s, skilled).waves) {
+    for (final snap in runOnce(s, skilled, maxWave: 110).waves) {
       byWave.putIfAbsent(snap.wave, () => []).add(snap.headroom);
     }
   }
@@ -437,11 +459,11 @@ void _levers() {
     SimConfig(
       label: '체력 증가율 −0.03',
       enemyHp: (w) =>
-          Balance.enemyHp(1, endless: true) *
+          Balance.enemyHp(1, GameMode.endless) *
           math
               .pow(
-                (Balance.enemyHp(11, endless: true) /
-                        Balance.enemyHp(10, endless: true)) -
+                (Balance.enemyHp(11, GameMode.endless) /
+                        Balance.enemyHp(10, GameMode.endless)) -
                     0.03,
                 w - 1,
               )
@@ -492,7 +514,13 @@ void main(List<String> args) {
   if (args.contains('--levers')) {
     _levers();
   } else if (args.contains('--curve')) {
-    _curve();
+    _curve(
+      args.contains('--easy')
+          ? GameMode.easy
+          : args.contains('--normal')
+          ? GameMode.normal
+          : GameMode.endless,
+    );
   } else {
     _report();
   }

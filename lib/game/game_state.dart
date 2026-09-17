@@ -2,24 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'data/balance.dart';
+import 'data/game_mode.dart';
 import 'data/rarity.dart';
 import 'record_store.dart';
 
+export 'data/game_mode.dart';
+
 enum GamePhase { ready, playing, gameOver, cleared }
-
-/// 플레이 방식. 인트로에서 고른다.
-enum GameMode {
-  clear('클리어 모드', '🏁', '100 웨이브를 막아내면 승리'),
-  endless('무한 모드', '♾️', '더 가파르게 · 끝까지 얼마나');
-
-  const GameMode(this.label, this.icon, this.description);
-
-  final String label;
-  final String icon;
-  final String description;
-
-  bool get isEndless => this == GameMode.endless;
-}
 
 /// HUD/컨트롤 패널이 구독하는 게임 진행 상태.
 class GameState extends ChangeNotifier {
@@ -50,7 +39,7 @@ class GameState extends ChangeNotifier {
   GamePhase phase = GamePhase.ready;
 
   /// 인트로에서 고른 플레이 방식. 다시 시작해도 유지된다.
-  GameMode mode = GameMode.clear;
+  GameMode mode = GameMode.easy;
 
   /// 인트로를 닫고 실제로 전투가 시작됐는지.
   bool started = false;

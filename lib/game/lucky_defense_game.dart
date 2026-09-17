@@ -322,8 +322,7 @@ class LuckyDefenseGame extends FlameGame {
     _hudDirty = true;
   }
 
-  double _hpAt(int wave) =>
-      Balance.enemyHp(wave, endless: state.mode.isEndless);
+  double _hpAt(int wave) => Balance.enemyHp(wave, state.mode);
 
   void _spawnEnemy() {
     final kind = _spawnKind;
