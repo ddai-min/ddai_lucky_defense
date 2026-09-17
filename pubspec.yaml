@@ -1,0 +1,21 @@
+name: ddai_lucky_defense
+description: "스타크래프트 유즈맵 스타일의 뽑기 기반 랜덤 디펜스 게임 (Flutter + Flame)."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flame: ^1.38.2
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.5.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
