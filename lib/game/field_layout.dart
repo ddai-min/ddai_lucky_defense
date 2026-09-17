@@ -133,7 +133,7 @@ class FieldLayout {
   static const int slotRows = lanes - 1;
 
   /// 한 줄에 놓이는 슬롯 수.
-  static const int slotCols = 6;
+  static const int slotCols = 7;
 
   /// 배치 가능한 총 슬롯 수. 화면 크기·확대 배율과 무관하게 고정이다.
   ///
