@@ -7,9 +7,12 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  # 이름을 자를 때 «글자» 단위로 세려고 쓴다(이모지·결합 문자 안전).
+  characters: ^1.4.1
   flame: ^1.38.2
   flutter:
     sdk: flutter
+  http: ^1.5.0
   shared_preferences: ^2.5.5
 
 dev_dependencies:

@@ -13,6 +13,7 @@ lib/
 │  ├─ field_layout.dart            화면 크기 → 몬스터 경로 + 유닛 슬롯 좌표 계산
 │  ├─ game_state.dart              자원/웨이브/강화 상태 (ChangeNotifier)
 │  ├─ record_store.dart            최고 기록 영구 저장 (SharedPreferences)
+│  ├─ leaderboard.dart            모드별 랭킹 (Firestore REST · docs/leaderboard.md)
 │  ├─ data/
 │  │  ├─ balance.dart              ★ 모든 밸런스 수치
 │  │  ├─ game_mode.dart            플레이 방식 (쉬움 · 보통 · 어려움 · 무한)
@@ -20,7 +21,10 @@ lib/
 │  │  ├─ unit_catalog.dart         유닛 도감 + 소환 추첨
 │  │  └─ enemy_catalog.dart        몬스터 · 보스 도감
 │  └─ components/                  Flame 컴포넌트 (유닛/몬스터/투사체/이펙트/배경)
-└─ ui/                             HUD · 조작 패널 · 도감 시트 · 오버레이
+└─ ui/                             HUD · 조작 패널 · 도감 시트 · 랭킹 시트 · 오버레이
+
+firebase/
+└─ firestore.rules                 랭킹 보안 규칙 (실제로 위조를 막는 곳)
 
 tool/
 └─ balance_sim.dart                난이도 시뮬레이터 ([balance.md](balance.md) 참고)

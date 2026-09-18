@@ -18,6 +18,7 @@ import 'data/rarity.dart';
 import 'data/unit_catalog.dart';
 import 'field_layout.dart';
 import 'game_state.dart';
+import 'leaderboard.dart';
 import 'record_store.dart';
 
 /// 운빨 디펜스 본체.
@@ -29,12 +30,18 @@ class LuckyDefenseGame extends FlameGame {
     required this.state,
     math.Random? random,
     RecordStore? records,
+    Leaderboard? leaderboard,
   }) : rng = random ?? math.Random(),
-       _records = records ?? PrefsRecordStore();
+       _records = records ?? PrefsRecordStore(),
+       leaderboard = leaderboard ?? FirestoreLeaderboard();
 
   final GameState state;
   final math.Random rng;
   final RecordStore _records;
+
+  /// 모드별 랭킹. 설정이 없는 빌드에서는 [Leaderboard.isAvailable] 이 거짓이라
+  /// UI 가 랭킹을 아예 감춘다.
+  final Leaderboard leaderboard;
 
   final List<UnitComponent> units = [];
   final List<EnemyComponent> enemies = [];
@@ -662,6 +669,30 @@ class LuckyDefenseGame extends FlameGame {
     _pendingSpawns = 0;
     submitRecord();
     state.notify();
+  }
+
+  /// 이번 판 성적을 모드 랭킹에 올린다.
+  ///
+  /// 한 판에 한 번만 받는다 — 결과 화면이 떠 있는 동안 여러 번 누르면 같은
+  /// 기록이 여러 줄로 쌓인다. 이름은 [normalizeRankName] 을 통과해야 한다.
+  Future<bool> submitRank(String rawName) async {
+    final name = normalizeRankName(rawName);
+    if (name == null ||
+        state.rankSubmitted ||
+        !state.mode.hasRanking ||
+        state.wave <= 0) {
+      return false;
+    }
+    final ok = await leaderboard.submit(
+      state.mode,
+      RankEntry(name: name, wave: state.wave, achievedAt: DateTime.now()),
+    );
+    if (ok) {
+      state.rankSubmitted = true;
+      state.notify();
+      unawaited(saveRankName(name));
+    }
+    return ok;
   }
 
   Future<void> _loadBestRecord() async {

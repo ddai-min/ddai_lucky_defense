@@ -22,4 +22,11 @@ enum GameMode {
 
   /// 끝이 없는 모드인지. 나머지는 [Balance.clearWave] 에서 끝난다.
   bool get isEndless => this == GameMode.endless;
+
+  /// 랭킹을 매기는 모드인지.
+  ///
+  /// 쉬움·보통은 빠져 있다 — 쉬움은 거의 모두가 100웨이브를 채워 줄이 서지
+  /// 않고, 보통은 «깼나 못 깼나» 라 순위가 의미가 없다. 어려움과 무한만
+  /// 사람마다 결과가 벌어진다.
+  bool get hasRanking => this == GameMode.hard || this == GameMode.endless;
 }

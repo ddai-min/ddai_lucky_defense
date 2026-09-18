@@ -47,7 +47,16 @@ jobs:
 
       - name: 웹 빌드
         # 저장소 이름이 바뀌어도 따라가도록 이벤트에서 가져온다.
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        #
+        # 랭킹 설정은 Secrets 에서 온다. 포크에는 값이 없어 랭킹 기능이 조용히
+        # 빠지므로, 남의 포크가 이 저장소의 랭킹에 기록을 쌓지 않는다.
+        # (웹 API 키 자체는 비밀이 아니다 — 빌드된 JS 에 그대로 실린다.
+        #  실제로 막는 건 firebase/firestore.rules 다.)
+        run: |
+          flutter build web --release \
+            --base-href "/${{ github.event.repository.name }}/" \
+            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
+            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
 
       - uses: actions/configure-pages@v6
 

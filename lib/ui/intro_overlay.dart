@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../game/data/balance.dart';
 import '../game/game_state.dart';
 import '../game/lucky_defense_game.dart';
+import 'ranking_sheet.dart';
 import 'theme.dart';
 
 /// 첫 진입 시 규칙을 알려주는 화면.
@@ -129,16 +130,37 @@ class IntroOverlay extends StatelessWidget {
                     const _GambleNote(),
                   ],
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ActionButton(
-                      icon: '▶️',
-                      label: '시작하기',
-                      color: GameColors.green,
-                      filled: true,
-                      height: 50,
-                      onTap: game.startGame,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ActionButton(
+                          icon: '▶️',
+                          label: '시작하기',
+                          color: GameColors.green,
+                          filled: true,
+                          height: 50,
+                          onTap: game.startGame,
+                        ),
+                      ),
+                      // 랭킹은 어려움·무한에만 있고, 설정이 없는 빌드에서는
+                      // 버튼 자체를 내보내지 않는다.
+                      if (game.leaderboard.isAvailable) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 96,
+                          child: ActionButton(
+                            icon: '🏆',
+                            label: '랭킹',
+                            height: 50,
+                            onTap: () => showRankingSheet(
+                              context,
+                              game.leaderboard,
+                              initialMode: game.state.mode,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),

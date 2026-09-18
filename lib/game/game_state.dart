@@ -75,6 +75,9 @@ class GameState extends ChangeNotifier {
   /// 이번 판에서 최고 기록을 갈아치웠는지.
   bool isNewRecord = false;
 
+  /// 이번 판 성적을 랭킹에 올렸는지. 한 판에 한 번만 받는다.
+  bool rankSubmitted = false;
+
   /// 보스 상태(없으면 null).
   String? bossName;
   double bossHpRatio = 0;
@@ -171,6 +174,7 @@ class GameState extends ChangeNotifier {
     bestRarityTier = 0;
     // best(최고 기록)는 판을 넘어 유지된다.
     isNewRecord = false;
+    rankSubmitted = false;
     bossName = null;
     bossHpRatio = 0;
     toastMessage = null;

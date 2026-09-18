@@ -4,7 +4,9 @@ import '../game/components/render_utils.dart';
 import '../game/data/balance.dart';
 import '../game/data/rarity.dart';
 import '../game/game_state.dart';
+import '../game/leaderboard.dart';
 import '../game/lucky_defense_game.dart';
+import 'ranking_sheet.dart';
 import 'theme.dart';
 
 /// 판이 끝나면 뜨는 결과 화면. 클리어와 패배를 함께 다룬다.
@@ -123,6 +125,8 @@ class ResultOverlay extends StatelessWidget {
                     value: state.best.isEmpty ? '-' : '${state.best.wave} 웨이브',
                     valueColor: GameColors.gold,
                   ),
+                  if (state.mode.hasRanking && game.leaderboard.isAvailable)
+                    _RankSubmit(game: game),
                   const SizedBox(height: 18),
                   Row(
                     children: [
@@ -154,6 +158,167 @@ class ResultOverlay extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 결과 화면에서 이름을 받아 랭킹에 올리는 줄.
+///
+/// 랭킹이 있는 모드(어려움·무한)이고 설정이 된 빌드에서만 뜬다.
+class _RankSubmit extends StatefulWidget {
+  const _RankSubmit({required this.game});
+
+  final LuckyDefenseGame game;
+
+  @override
+  State<_RankSubmit> createState() => _RankSubmitState();
+}
+
+class _RankSubmitState extends State<_RankSubmit> {
+  final TextEditingController _name = TextEditingController();
+  bool _sending = false;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 지난번에 쓴 이름을 채워 둔다. 매판 다시 치게 할 이유가 없다.
+    loadRankName().then((saved) {
+      if (mounted && saved != null && _name.text.isEmpty) {
+        _name.text = saved;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_sending) {
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _failed = false;
+    });
+    final ok = await widget.game.submitRank(_name.text);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _sending = false;
+      _failed = !ok;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.game.state;
+    final done = state.rankSubmitted;
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🏆', style: TextStyle(fontSize: 13)),
+              const SizedBox(width: 6),
+              Text(
+                done ? '랭킹에 올렸습니다' : '${state.mode.label} 랭킹에 기록 남기기',
+                style: TextStyle(
+                  color: done ? GameColors.green : GameColors.sub,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          if (done)
+            ActionButton(
+              icon: '📋',
+              label: '랭킹 보기',
+              height: 44,
+              onTap: () => showRankingSheet(
+                context,
+                widget.game.leaderboard,
+                initialMode: state.mode,
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _name,
+                    maxLength: kMaxRankNameLength,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      counterText: '',
+                      hintText: '이름',
+                      hintStyle: const TextStyle(
+                        color: GameColors.sub,
+                        fontSize: 13,
+                      ),
+                      filled: true,
+                      fillColor: GameColors.panelSoft,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(11),
+                        borderSide: const BorderSide(color: GameColors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(11),
+                        borderSide: const BorderSide(color: GameColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(11),
+                        borderSide: const BorderSide(color: GameColors.gold),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                SizedBox(
+                  width: 92,
+                  child: ActionButton(
+                    label: _sending ? '올리는 중' : '등록',
+                    color: GameColors.gold,
+                    filled: true,
+                    height: 44,
+                    enabled: !_sending,
+                    onTap: _submit,
+                  ),
+                ),
+              ],
+            ),
+          if (_failed) ...[
+            const SizedBox(height: 6),
+            const Text(
+              '등록하지 못했습니다. 이름을 확인하고 다시 눌러 보세요.',
+              style: TextStyle(
+                color: GameColors.life,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

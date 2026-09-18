@@ -5,6 +5,7 @@ import 'package:ddai_lucky_defense/game/data/rarity.dart';
 import 'package:ddai_lucky_defense/game/data/unit_catalog.dart';
 import 'package:ddai_lucky_defense/game/field_layout.dart';
 import 'package:ddai_lucky_defense/game/game_state.dart';
+import 'package:ddai_lucky_defense/game/leaderboard.dart';
 import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
 import 'package:ddai_lucky_defense/game/record_store.dart';
 import 'package:ddai_lucky_defense/main.dart';
@@ -55,6 +56,7 @@ Future<LuckyDefenseGame> _boot(
   int seed = 42,
   math.Random? random,
   RecordStore? records,
+  Leaderboard? leaderboard,
 }) async {
   tester.view
     ..physicalSize =
@@ -70,6 +72,7 @@ Future<LuckyDefenseGame> _boot(
           state: GameState(),
           random: random ?? math.Random(seed),
           records: records ?? MemoryRecordStore(),
+          leaderboard: leaderboard ?? MemoryLeaderboard(isAvailable: false),
         );
         return game;
       },
@@ -614,6 +617,121 @@ void main() {
     expect(state.gems, 0);
     // 하나 남은 자리를 채웠으니 이제 겨냥할 대상이 없다.
     expect(state.highSummonName, isNull);
+  });
+
+  group('랭킹', () {
+    test('이름을 다듬는다', () {
+      expect(normalizeRankName('  택민  '), '택민');
+      expect(normalizeRankName('택\n민   입니다'), '택 민 입니다');
+      expect(normalizeRankName('   '), isNull);
+      expect(normalizeRankName(''), isNull);
+      expect(
+        normalizeRankName('가나다라마바사아자차카타파하'),
+        '가나다라마바사아자차카타',
+        reason: '$kMaxRankNameLength 자에서 자른다',
+      );
+    });
+
+    test('랭킹은 어려움과 무한에만 있다', () {
+      expect(GameMode.easy.hasRanking, isFalse);
+      expect(GameMode.normal.hasRanking, isFalse);
+      expect(GameMode.hard.hasRanking, isTrue);
+      expect(GameMode.endless.hasRanking, isTrue);
+    });
+
+    test('모드마다 컬렉션이 다르다', () {
+      expect(FirestoreLeaderboard.collectionOf(GameMode.hard), 'ranking_hard');
+      expect(
+        FirestoreLeaderboard.collectionOf(GameMode.endless),
+        'ranking_endless',
+      );
+    });
+
+    test('설정이 없으면 랭킹을 쓸 수 없다', () {
+      // --dart-define 없이 빌드하면 UI 가 랭킹을 아예 감춘다.
+      expect(FirestoreLeaderboard().isAvailable, isFalse);
+      expect(
+        FirestoreLeaderboard(projectId: 'p', apiKey: 'k').isAvailable,
+        isTrue,
+      );
+    });
+
+    testWidgets('게임이 끝나면 이름을 받아 랭킹에 올린다', (tester) async {
+      final board = MemoryLeaderboard();
+      final game = await _boot(tester, leaderboard: board);
+      game.setMode(GameMode.hard);
+      game.startGame();
+      final state = game.state;
+      state
+        ..wave = 77
+        ..phase = GamePhase.gameOver;
+      await tester.pump();
+
+      expect(find.text('등록'), findsOneWidget, reason: '어려움은 랭킹이 있다');
+
+      await tester.enterText(find.byType(TextField), '택민');
+      await tester.tap(find.text('등록'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(board.submitCount, 1);
+      final entries = board.entries[GameMode.hard]!;
+      expect(entries.single.name, '택민');
+      expect(entries.single.wave, 77);
+      expect(state.rankSubmitted, isTrue);
+
+      // 한 판에 한 번만 받는다 — 다시 눌러도 줄이 늘지 않는다.
+      expect(await game.submitRank('택민'), isFalse);
+      expect(board.submitCount, 1);
+    });
+
+    testWidgets('쉬움·보통에서는 이름 입력이 나오지 않는다', (tester) async {
+      final game = await _boot(tester, leaderboard: MemoryLeaderboard());
+      game.setMode(GameMode.normal);
+      game.startGame();
+      game.state
+        ..wave = 50
+        ..phase = GamePhase.gameOver;
+      await tester.pump();
+
+      expect(find.text('등록'), findsNothing);
+    });
+
+    testWidgets('설정이 없는 빌드에서는 랭킹 UI 가 없다', (tester) async {
+      final game = await _boot(
+        tester,
+        leaderboard: MemoryLeaderboard(isAvailable: false),
+      );
+      game.setMode(GameMode.hard);
+      expect(find.text('랭킹'), findsNothing, reason: '인트로 버튼');
+
+      game.startGame();
+      game.state
+        ..wave = 30
+        ..phase = GamePhase.gameOver;
+      await tester.pump();
+      expect(find.text('등록'), findsNothing);
+    });
+
+    testWidgets('빈 이름은 올리지 않는다', (tester) async {
+      final board = MemoryLeaderboard();
+      final game = await _boot(tester, leaderboard: board);
+      game.setMode(GameMode.endless);
+      game.startGame();
+      game.state
+        ..wave = 42
+        ..phase = GamePhase.gameOver;
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.tap(find.text('등록'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(board.submitCount, 0);
+      expect(game.state.rankSubmitted, isFalse);
+      expect(find.textContaining('등록하지 못했습니다'), findsOneWidget);
+    });
   });
 
   group('키보드 단축키', () {

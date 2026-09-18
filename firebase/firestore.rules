@@ -1,0 +1,54 @@
+rules_version = '2';
+
+// 랭킹 규칙.
+//
+// 이 게임은 정적 웹 클라이언트라 브라우저에서 아무 값이나 POST 할 수 있다.
+// 그래서 **막는 건 전부 여기서 한다.** 클라이언트의 검사는 편의일 뿐이다.
+//
+// 막는 것
+//   - 필드 구성이 정확히 name·wave·createdAt 인지 (다른 값 섞어 넣기 차단)
+//   - 웨이브가 모드별 최대치를 넘지 않는지 (어려움 150, 무한은 상한을 크게)
+//   - 이름 길이 (1~12자)
+//   - 수정·삭제 (한 번 올린 기록은 누구도 못 고친다)
+//
+// 못 막는 것
+//   - 실제로 그 웨이브까지 갔는지. 범위 안의 거짓말은 통과한다.
+//   - 같은 사람이 여러 번 올리는 것(레이트 리밋은 규칙으로 표현할 수 없다).
+//   여기까지 막으려면 서버에서 판을 다시 돌려 검증해야 한다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidEntry(maxWave) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['name', 'wave', 'createdAt'])
+          && data.keys().hasAll(['name', 'wave', 'createdAt'])
+          && data.name is string
+          && data.name.size() >= 1
+          && data.name.size() <= 12
+          && data.wave is int
+          && data.wave >= 1
+          && data.wave <= maxWave
+          && data.createdAt is timestamp;
+    }
+
+    // 어려움: Balance.clearWave(hard) 와 같은 값이다.
+    match /ranking_hard/{entry} {
+      allow read: if true;
+      allow create: if isValidEntry(150);
+      allow update, delete: if false;
+    }
+
+    // 무한: 끝이 없으므로 «사람이 도달할 리 없는» 선으로만 막는다.
+    // 시뮬레이터 기준 숙련자 중앙값이 39웨이브다.
+    match /ranking_endless/{entry} {
+      allow read: if true;
+      allow create: if isValidEntry(999);
+      allow update, delete: if false;
+    }
+
+    // 나머지는 전부 막는다.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
