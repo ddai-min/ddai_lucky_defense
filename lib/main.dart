@@ -111,6 +111,14 @@ class _GameScreenState extends State<GameScreen> {
         game.summon();
       case GameKey.highSummon:
         game.highSummon();
+      case GameKey.merge:
+        // 고른 유닛만 합성한다. 아무것도 안 골랐을 때 «합성 가능한 아무거나» 로
+        // 흘려보내면, 어려움에서는 누른 적 없는 초월 도박이 튀어나온다.
+        final unit = game.selected;
+        if (unit == null) {
+          return false;
+        }
+        game.mergeOnce(specId: unit.spec.id);
       case GameKey.attack:
         game.upgradeAttack();
       case GameKey.attackSpeed:

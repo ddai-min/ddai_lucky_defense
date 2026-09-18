@@ -902,6 +902,54 @@ void main() {
       expect(state.lives, lives + 1, reason: 'T');
     });
 
+    testWidgets('C 는 고른 유닛을 합성한다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final slime = kUnitById['slime']!;
+      game.placeUnits(slime, Balance.mergeCount);
+      game.focusUnit(game.units.first);
+      await tester.pump();
+
+      await tester.sendKeyEvent(GameKey.merge.key);
+      await tester.pump();
+
+      expect(game.unitCounts[slime.id] ?? 0, 0, reason: '재료 3기가 사라진다');
+      expect(game.units.length, 1);
+      expect(game.units.first.spec.rarity, slime.rarity.next);
+    });
+
+    testWidgets('아무것도 안 골랐으면 C 는 아무 일도 안 한다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      // 합성할 수 있는 유닛이 판에 있어도, 고르지 않았으면 손대지 않는다.
+      // 어려움에서 «아무거나» 로 흘러가면 누른 적 없는 도박이 터진다.
+      final slime = kUnitById['slime']!;
+      game.placeUnits(slime, Balance.mergeCount);
+      game.clearSelection();
+      await tester.pump();
+
+      await tester.sendKeyEvent(GameKey.merge.key);
+      await tester.pump();
+
+      expect(game.unitCounts[slime.id], Balance.mergeCount);
+      expect(game.state.totalMerges, 0);
+    });
+
+    testWidgets('재료가 모자라면 C 를 눌러도 그대로다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final slime = kUnitById['slime']!;
+      game.placeUnits(slime, Balance.mergeCount - 1);
+      game.focusUnit(game.units.first);
+      await tester.pump();
+
+      await tester.sendKeyEvent(GameKey.merge.key);
+      await tester.pump();
+
+      expect(game.unitCounts[slime.id], Balance.mergeCount - 1);
+      expect(game.state.totalMerges, 0);
+    });
+
     testWidgets('인트로·일시정지 중에는 듣지 않는다', (tester) async {
       final game = await _boot(tester);
       final state = game.state;
@@ -933,6 +981,9 @@ void main() {
       try {
         final game = await _boot(tester);
         game.startGame();
+        // 합성 키캡은 선택 카드 위에만 있으니 유닛을 하나 골라 둔다.
+        game.placeUnits(kUnitById['slime']!, 1);
+        game.focusUnit(game.units.first);
         await tester.pump();
 
         // 강화 목록은 가로로 스크롤되므로 한 화면에 다 뜨지 않는다.

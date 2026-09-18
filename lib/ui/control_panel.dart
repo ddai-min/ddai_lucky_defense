@@ -702,6 +702,7 @@ class _SelectionCard extends StatelessWidget {
                 : '$count/${Balance.mergeCount}',
             color: gamble ? GameColors.life : GameColors.green,
             enabled: canMerge,
+            shortcut: GameKey.merge,
             onTap: () => game.mergeOnce(specId: spec.id),
           ),
           const SizedBox(width: 5),
@@ -752,6 +753,7 @@ class _MiniButton extends StatelessWidget {
     required this.color,
     required this.enabled,
     required this.onTap,
+    this.shortcut,
   });
 
   final String label;
@@ -760,12 +762,17 @@ class _MiniButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
 
+  /// 이 버튼을 누르는 키보드 단축키. 없는 버튼도 있다.
+  final GameKey? shortcut;
+
   @override
   Widget build(BuildContext context) {
+    final cap = shortcut != null && hasPhysicalKeyboard;
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
-        width: 52,
+        // 키캡이 붙는 만큼만 넓힌다.
+        width: cap ? 64 : 52,
         height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
@@ -778,14 +785,24 @@ class _MiniButton extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: enabled ? Colors.white : GameColors.sub,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w900,
-                height: 1.1,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: enabled ? Colors.white : GameColors.sub,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+                if (cap) ...[
+                  const SizedBox(width: 4),
+                  KeyCap(shortcut!, enabled: enabled),
+                ],
+              ],
             ),
             Text(
               sub,
