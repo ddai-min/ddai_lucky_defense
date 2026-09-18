@@ -36,7 +36,8 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
       (game.unitCounts[spec.id] ?? 0) >= 3 && spec.rarity.next != null;
 
   double get range => game.layout.bandHeight * spec.rangeFactor;
-  double get damage => spec.damage * game.state.damageMultiplier;
+  double get damage =>
+      spec.damage * game.state.damageMultiplierOf(spec.rarity);
   double get attacksPerSecond =>
       spec.attacksPerSecond * game.state.attackSpeedMultiplier;
 

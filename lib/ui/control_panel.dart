@@ -37,7 +37,7 @@ class ControlPanel extends StatelessWidget {
               else
                 _RatesStrip(
                   luckLevel: state.luckLevel,
-                  onTap: () => showCodexSheet(context, state.luckLevel),
+                  onTap: () => showCodexSheet(context, state.luckLevel, state.mode),
                 ),
               if (state.willAutoSell) _AutoSellNotice(state: state),
               const SizedBox(height: 8),
@@ -136,10 +136,17 @@ class _ActionRow extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(
           flex: 4,
+          // 무엇이 나올지 미리 보여 준다 — 합성까지 하나 남은 유닛이 있으면
+          // 고급소환은 그 유닛을 콕 집어 준다([pickHighSummonTarget]).
+          //
+          // 이름을 «고급소환» 옆에 덧붙이면 320pt 화면에서 둘 다 잘려 값도
+          // 이름도 안 보인다. 그래서 겨냥한 대상이 있으면 이름을 라벨 자리에
+          // 그대로 세우고, 정체는 이모지·등급색·💎 값으로 알린다.
           child: ActionButton(
-            label: '고급소환',
+            icon: state.highSummonEmoji,
+            label: state.highSummonName ?? '고급소환',
             sub: '${Balance.highSummonGems} 💎',
-            color: GameColors.gem,
+            color: state.highSummonRarity?.color ?? GameColors.gem,
             enabled: state.canHighSummon,
             onTap: game.highSummon,
           ),
@@ -614,6 +621,9 @@ class _SelectionCard extends StatelessWidget {
     final spec = unit.spec;
     final count = game.unitCounts[spec.id] ?? 0;
     final canMerge = count >= Balance.mergeCount && spec.rarity.next != null;
+    // 어려움의 초월 합성은 도박이다. 누르기 전에 확률과 잃는 개수를 보여 준다.
+    final chance = game.mergeChanceOf(spec);
+    final gamble = chance < 1;
 
     return Container(
       constraints: const BoxConstraints(minHeight: 54),
@@ -653,8 +663,9 @@ class _SelectionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'DPS ${formatNumber(spec.dps * game.state.damageMultiplier * game.state.attackSpeedMultiplier)}'
-                  '  ·  보유 $count개  ·  ${spec.skillText}',
+                  'DPS ${formatNumber(spec.dps * game.state.damageMultiplierOf(spec.rarity) * game.state.attackSpeedMultiplier)}'
+                  '  ·  보유 $count개  ·  '
+                  '${gamble ? '합성 실패 시 ${Balance.mergeFailLoss}기 소멸' : spec.skillText}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -668,9 +679,11 @@ class _SelectionCard extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           _MiniButton(
-            label: '합성',
-            sub: '$count/${Balance.mergeCount}',
-            color: GameColors.green,
+            label: gamble ? '도박' : '합성',
+            sub: gamble
+                ? '${(chance * 100).round()}%'
+                : '$count/${Balance.mergeCount}',
+            color: gamble ? GameColors.life : GameColors.green,
             enabled: canMerge,
             onTap: () => game.mergeOnce(specId: spec.id),
           ),

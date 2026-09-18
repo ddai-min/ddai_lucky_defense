@@ -44,8 +44,50 @@ class Balance {
   /// 합성에 필요한 동일 유닛 개수.
   static const int mergeCount = 3;
 
+  // ───────────────────────── 어려움: 초월 도박 ─────────────────────────
+  //
+  // 이 게임에서 «운» 은 사실상 아무것도 결정하지 않는다. 한 판에 유닛을 수백
+  // 번 뽑으므로 뽑기 운은 평균으로 수렴하고, 후반에는 누구나 21칸을 초월로
+  // 채워 같은 전투력에서 멈춘다. 실력을 고정해 놓고 재면 판마다 벌어지는
+  // 전투력 차이가 100웨이브에서 1.10배뿐이다. 그래서 체력만 올리면 «운 좋으면
+  // 깬다» 가 아니라 «아무도 못 깬다» 가 된다.
+  //
+  //   dart run tool/balance_sim.dart --luck
+  //
+  // 어려움은 최고 등급을 도박으로 만들어 그 편차를 벌린다. 같은 실력에서도
+  // 판마다 전투력이 2배 넘게 갈리므로, 당락을 가르는 게 실력이 아니라 뽑기다.
+
+  /// 최고 등급(초월) 자리. [damage] 표의 마지막 칸이다.
+  static int get topTier => damage.length - 1;
+
+  /// 어려움에서 신화 3개를 초월로 합성했을 때의 성공 확률.
+  static const double hardMergeChance = 0.15;
+
+  /// 합성에 실패했을 때 사라지는 재료 수. 나머지는 자리에 남는다.
+  static const int mergeFailLoss = 2;
+
+  /// 어려움에서 초월이 받는 피해 배수.
+  ///
+  /// 이 보정이 없으면 **도박하지 않는 쪽이 최적** 이 되어 규칙이 통째로 함정이
+  /// 된다. 신화 3개는 그대로 두면 21,528 DPS 인데, 15% 에 걸어 실패하면 1개만
+  /// 남으므로 기댓값이 10,982 로 반토막이기 때문이다. 초월을 4배로 키우면
+  /// 기댓값이 25,630(1.19배)이 되어 거는 쪽이 이득이 된다.
+  static const double hardTopTierDamage = 4;
+
+  /// [fromRarity] 유닛 [mergeCount] 개를 합성할 때의 성공 확률. 1 이면 확정이다.
+  static double mergeChance(int fromRarity, GameMode mode) =>
+      mode == GameMode.hard && fromRarity == topTier - 1 ? hardMergeChance : 1;
+
+  /// 등급별 피해 보정. 강화([atkBonus])와 곱해져 최종 피해가 된다.
+  static double rarityDamageBonus(int rarity, GameMode mode) =>
+      mode == GameMode.hard && rarity == topTier ? hardTopTierDamage : 1;
+
   /// 보유 유닛이 많을수록 소환 비용이 오른다. 합성이 이득인 이유.
-  static int summonCost(int unitCount) => 20 + 6 * unitCount;
+  ///
+  /// 생각보다 훨씬 센 레버다. 20+6n 에서 28+10n 으로 올려 봤을 때 체력을
+  /// 그대로 두고도 보통 도달률이 26%에서 0%가 됐다 — 소환 횟수가 줄면 합성
+  /// 사슬이 통째로 느려지기 때문이다. 지금 값(24+8n)은 그 중간이다.
+  static int summonCost(int unitCount) => 24 + 8 * unitCount;
 
   // ───────────────────────── 웨이브 ─────────────────────────
   static const double firstWaveDelay = 10;
@@ -56,7 +98,18 @@ class Balance {
   /// 클리어 모드가 끝나는 웨이브.
   static const int clearWave = 100;
 
-  /// 몬스터 체력. 난이도는 이 곡선 하나로만 갈린다.
+  /// 1웨이브 몬스터 체력. 모든 모드가 여기서 출발한다.
+  ///
+  /// 여기를 올리면 곡선 전체가 곱으로 올라간다. 여유가 2~5배인 초·중반은
+  /// 체감만 빡빡해지지만, 여유가 1.0 언저리인 후반은 **도달률과 1:1로 맞바꾼다**
+  /// — 90이던 시절 104로만 올려 봤을 때(×1.15) 보통 도달률이 26%에서 2%로
+  /// 떨어졌다. 그래서 이 값을 올릴 때는 모드별 증가율을 같이 내려 결승선을
+  /// 제자리에 둬야 한다. 90 → 110 으로 올리면서 보통은 1.19 → 1.186,
+  /// 어려움은 1.20 → 1.197 로 내렸다(100웨이브에서 복리로 1.23배를 상쇄한다).
+  static const double baseHp = 110;
+
+  /// 몬스터 체력. 쉬움·보통·무한의 난이도는 이 곡선 하나로만 갈린다
+  /// (어려움만 [mergeChance] 라는 규칙이 하나 더 붙는다).
   ///
   /// 증가율이 플레이어 전투력 증가율(실측 웨이브당 약 +13.5%)보다 훨씬 가파르면
   /// 중반부터 격차가 복리로 벌어져 아무것도 손쓸 수 없게 된다. 대신 첫 웨이브
@@ -65,19 +118,32 @@ class Balance {
     switch (mode) {
       // 쉬움: [clearWave] 까지 갈 수 있게 완만한 지수 곡선.
       case GameMode.easy:
-        return 90 * math.pow(1.10, wave - 1).toDouble();
+        return baseHp * math.pow(1.10, wave - 1).toDouble();
       // 보통: 같은 웨이브에서 끝나되 중반이 팽팽하도록 꺾인 곡선.
-      // 실력 분포 전체 기준 도달률이 24% 다 — 잘 하면 대체로 깨지만(숙련자 90%)
-      // 대충 해서는 못 깬다. 못 깨는 판도 92~97웨이브까지는 가므로 «중반에
-      // 무너졌다» 가 아니라 «결승선 앞에서 놓쳤다» 로 끝난다.
-      // 여기서 증가율을 0.002 만 더 올리면 숙련자 도달률이 90% 에서 41% 로
-      // 주저앉는다. 후반에는 플레이어가 «초월» 에서 멈춰 더 셀 수 없기 때문에
-      // 이 언저리가 난이도가 급격히 꺾이는 지점이다.
+      // 실력 분포 전체 기준 도달률이 13% 다 — 아주 잘 해야 깨진다(숙련자 79%).
+      // 못 깨는 판도 88웨이브까지는 가므로 «중반에 무너졌다» 가 아니라
+      // «결승선 앞에서 놓쳤다» 로 끝난다.
+      // 여기서 증가율을 0.002 만 더 올리면 숙련자 도달률이 5분의 1 이하로
+      // 주저앉는다(1.186 → 1.188 에서 85% → 18%). 후반에는 플레이어가
+      // «초월» 에서 멈춰 더 셀 수 없기 때문에 이 언저리가 난이도가 급격히
+      // 꺾이는 지점이다.
       case GameMode.normal:
-        return _taperedHp(wave, growth: 1.19, taper: 0.9875);
+        return _taperedHp(wave, growth: 1.186, taper: 0.9875);
+      // 어려움: 곡선만 보면 보통과 별로 다르지 않다. 난이도는 여기가 아니라
+      // 초월 도박([hardMergeChance])에서 나온다 — 초월을 몇 기 세웠느냐로
+      // 전투력이 갈리고, 이 곡선은 그 분포의 꼭대기에 결승선을 놓는다
+      // (실력 전 구간에서 3~6%, 즉 실력이 아니라 뽑기가 가른다).
+      //
+      // 여기서 [taper] 를 1.0 쪽으로 올리면 못 깨는 판이 중반에 죽지 않고
+      // 94웨이브까지 간다(보통이 그렇게 맞춰져 있다). 그 대신 30웨이브 여유가
+      // 3.1배에서 11.6배로 벌어져, **보통보다 쉬운 «어려움»** 이 된다.
+      // 60웨이브 운빨 폭이 8배라 한 곡선으로 «운 나쁜 판» 과 «운 좋은 판» 을
+      // 동시에 팽팽하게 만들 수는 없다 — 둘 중 하나를 골라야 한다.
+      case GameMode.hard:
+        return _taperedHp(wave, growth: 1.197, taper: 0.9875);
       // 무한: «얼마나 멀리 가나» 가 전부라 끝까지 가파르다.
       case GameMode.endless:
-        return 90 * math.pow(1.17, wave - 1).toDouble();
+        return baseHp * math.pow(1.17, wave - 1).toDouble();
     }
   }
 
@@ -86,7 +152,7 @@ class Balance {
   /// 플레이어 전투력은 «초월» 에서 멈추므로 후반에는 더 늘지 않는다. 체력만
   /// 끝까지 같은 비율로 올리면 중반 50웨이브가 손 놓아도 되는 구간이 되고
   /// 마지막 몇 웨이브만 난이도가 된다(쉬움 곡선이 딱 그렇다 — 중반 여유가
-  /// 10~19배까지 벌어진다). 증가율을 조금씩 꺾으면 여유가 처음부터 끝까지
+  /// 10배 안팎까지 벌어진다). 증가율을 조금씩 꺾으면 여유가 처음부터 끝까지
   /// 비슷하게 유지된다.
   static double _taperedHp(
     int wave, {
@@ -94,7 +160,7 @@ class Balance {
     required double taper,
   }) {
     final steps = (1 - math.pow(taper, wave - 1)) / (1 - taper);
-    return 90 * math.pow(growth, steps).toDouble();
+    return baseHp * math.pow(growth, steps).toDouble();
   }
 
   static int enemyCount(int wave) => math.min(32, 8 + (wave * 0.55).floor());
@@ -131,8 +197,12 @@ class Balance {
   static const int luckMaxLevel = 30;
   static int luckCost(int lv) => 3 + lv ~/ 3;
 
-  /// 유니크 이상 확정 소환 비용(다이아).
-  static const int highSummonGems = 12;
+  /// 고급소환 비용(다이아).
+  ///
+  /// 보스 하나가 고급소환 한 번이 되도록 맞췄다([bossGems] 는 40웨이브에서 8).
+  /// 12 였을 때는 행운 3~4레벨을 포기하는 값이라 누를 이유가 없었다 — 다이아
+  /// 수입이 한 판에 95 인데 행운을 끝까지 올리는 데만 225 가 들기 때문이다.
+  static const int highSummonGems = 8;
 
   /// 라이프 1 회복 비용(다이아).
   static const int reviveGems = 8;

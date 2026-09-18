@@ -102,6 +102,13 @@ class ResultOverlay extends StatelessWidget {
                   ),
                   _ResultRow(label: '소환 횟수', value: '${state.totalSummons}'),
                   _ResultRow(label: '합성 횟수', value: '${state.totalMerges}'),
+                  // 어려움에서만 나오는 줄. 이 판의 운을 한 숫자로 보여 준다.
+                  if (state.failedMerges > 0)
+                    _ResultRow(
+                      label: '합성 실패',
+                      value: '${state.failedMerges}',
+                      valueColor: GameColors.life,
+                    ),
                   _ResultRow(
                     label: '최고 등급',
                     value: bestRarity.label,

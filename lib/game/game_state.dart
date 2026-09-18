@@ -55,9 +55,18 @@ class GameState extends ChangeNotifier {
   Rarity? autoSellRarity;
   int autoSellRefund = 0;
 
+  /// 고급소환이 콕 집어 줄 유닛([pickHighSummonTarget]). 없으면 null —
+  /// 그때는 유니크 이상 무작위다.
+  String? highSummonName;
+  String? highSummonEmoji;
+  Rarity? highSummonRarity;
+
   int totalKills = 0;
   int totalSummons = 0;
   int totalMerges = 0;
+
+  /// 어려움에서 초월 합성에 실패한 횟수([Balance.mergeChance]).
+  int failedMerges = 0;
   int bestRarityTier = 0;
 
   /// 기기에 저장된 최고 기록. 판을 다시 시작해도 유지된다.
@@ -120,6 +129,10 @@ class GameState extends ChangeNotifier {
   bool get luckMaxed => luckLevel >= Balance.luckMaxLevel;
 
   double get damageMultiplier => Balance.atkBonus(atkLevel);
+
+  /// [rarity] 유닛이 받는 피해 배수. 강화에 모드 보정까지 곱한 값이다.
+  double damageMultiplierOf(Rarity rarity) =>
+      damageMultiplier * Balance.rarityDamageBonus(rarity.index, mode);
   double get attackSpeedMultiplier => Balance.spdBonus(spdLevel);
   double get goldMultiplier => Balance.goldBonus(goldLevel);
 
@@ -145,9 +158,13 @@ class GameState extends ChangeNotifier {
     autoSellName = null;
     autoSellRarity = null;
     autoSellRefund = 0;
+    highSummonName = null;
+    highSummonEmoji = null;
+    highSummonRarity = null;
     totalKills = 0;
     totalSummons = 0;
     totalMerges = 0;
+    failedMerges = 0;
     bestRarityTier = 0;
     // best(최고 기록)는 판을 넘어 유지된다.
     isNewRecord = false;

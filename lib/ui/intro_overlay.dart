@@ -105,21 +105,29 @@ class IntroOverlay extends StatelessWidget {
                     body: '유닛을 탭하면 정보·판매·합성, 드래그하면 자리를 바꿉니다.',
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      for (final mode in GameMode.values) ...[
-                        if (mode != GameMode.values.first)
-                          const SizedBox(width: 8),
-                        Expanded(
-                          child: _ModeCard(
-                            mode: mode,
-                            selected: game.state.mode == mode,
-                            onTap: () => game.setMode(mode),
+                  // 모드가 넷이라 한 줄에 세우면 320pt 화면에서 카드가 뭉개진다.
+                  for (var i = 0; i < GameMode.values.length; i += 2) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        for (final mode in GameMode.values.skip(i).take(2)) ...[
+                          if (mode != GameMode.values[i])
+                            const SizedBox(width: 8),
+                          Expanded(
+                            child: _ModeCard(
+                              mode: mode,
+                              selected: game.state.mode == mode,
+                              onTap: () => game.setMode(mode),
+                            ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
+                  ],
+                  if (game.state.mode == GameMode.hard) ...[
+                    const SizedBox(height: 9),
+                    const _GambleNote(),
+                  ],
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
@@ -156,7 +164,11 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = mode.isEndless ? GameColors.accent : GameColors.green;
+    final color = switch (mode) {
+      GameMode.endless => GameColors.accent,
+      GameMode.hard => GameColors.life,
+      _ => GameColors.green,
+    };
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -210,6 +222,37 @@ class _ModeCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 어려움을 고른 동안만 뜨는 규칙 안내. 이 모드만 합성 규칙이 다르다.
+class _GambleNote extends StatelessWidget {
+  const _GambleNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final chance = (Balance.hardMergeChance * 100).round();
+    final bonus = Balance.hardTopTierDamage.toStringAsFixed(0);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: GameColors.life.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: GameColors.life.withValues(alpha: 0.5)),
+      ),
+      child: Text(
+        '🎲 어려움에서는 신화 3개를 초월로 올리는 합성이 $chance% 도박입니다. '
+        '실패하면 ${Balance.mergeFailLoss}기가 사라지고, 성공하면 공격력이 '
+        '$bonus배인 초월이 나옵니다. 초월을 몇 기 세웠느냐로 판이 갈립니다.',
+        style: const TextStyle(
+          color: GameColors.life,
+          fontSize: 10.5,
+          height: 1.4,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

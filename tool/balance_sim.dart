@@ -3,6 +3,8 @@
 //   dart run tool/balance_sim.dart           현재 밸런스 리포트
 //   dart run tool/balance_sim.dart --curve   웨이브별 여유(보유 DPS ÷ 필요 DPS)
 //   dart run tool/balance_sim.dart --levers  조정 레버별 효과 비교
+//   dart run tool/balance_sim.dart --luck    운이 당락을 가르는지 측정
+//   dart run tool/balance_sim.dart --gems    다이아를 어디에 쓰는 게 이득인지
 //
 // 공식은 `lib/game/data/balance.dart` 를 그대로 가져다 쓴다. 수치를 고치면
 // 여기도 따라가므로 «게임과 시뮬레이터가 어긋나는» 일이 없다.
@@ -13,6 +15,7 @@
 //   1. 등급별 유닛 종류 수 [kTypesPerRarity]
 //   2. 슬롯 수 [kSlots]
 //   3. 자동 판매 대상 고르는 규칙 [_autoSellIndex] — pickAutoSellIndex 의 사본
+//      고급소환이 겨냥할 유닛 [_highSummonTarget] — pickHighSummonTarget 의 사본
 // 1·2 는 테스트(«시뮬레이터가 복사해 쓰는 상수가 실제 게임과 맞는다»)가
 // 어긋나지 않도록 지켜 준다.
 
@@ -23,7 +26,7 @@ import 'package:ddai_lucky_defense/game/data/balance.dart';
 import 'package:ddai_lucky_defense/game/data/game_mode.dart';
 
 /// 등급별 유닛 종류 수(노말 ~ 초월).
-const List<int> kTypesPerRarity = [4, 4, 4, 4, 4, 3, 1];
+const List<int> kTypesPerRarity = [4, 4, 4, 4, 4, 3, 3];
 
 /// 배치 가능한 슬롯 수.
 const int kSlots = 21;
@@ -51,6 +54,8 @@ class SimConfig {
     this.bossHpMultiplier = Balance.bossHpMultiplier,
     this.startLuck = 0,
     this.mergeAnyOfRarity = false,
+    this.luckCap = Balance.luckMaxLevel,
+    this.highSummons = false,
   });
 
   final String label;
@@ -75,12 +80,32 @@ class SimConfig {
   /// 참이면 «같은 등급 아무 3개» 로 합성한다(현재 규칙은 같은 유닛 3개).
   final bool mergeAnyOfRarity;
 
+  /// 행운을 여기까지만 올린다. 남는 다이아는 [highSummons] 에 쓰인다.
+  final int luckCap;
+
+  /// 참이면 남는 다이아로 고급소환을 한다.
+  final bool highSummons;
+
   double hpAt(int wave) => enemyHp?.call(wave) ?? Balance.enemyHp(wave, mode);
   int costAt(int units) => summonCost?.call(units) ?? Balance.summonCost(units);
-  List<double> get damageTable => damage ?? Balance.damage;
 
-  SimConfig copyWith({String? label, double? coverage, GameMode? mode}) =>
-      SimConfig(
+  /// 모드 보정까지 반영한 등급별 피해(어려움의 초월 보너스).
+  List<double> get damageTable => [
+    for (var r = 0; r < (damage ?? Balance.damage).length; r++)
+      (damage ?? Balance.damage)[r] * Balance.rarityDamageBonus(r, mode),
+  ];
+
+  /// [fromRarity] 3개를 합성할 성공 확률. 어려움의 초월 합성만 1 보다 작다.
+  double mergeChanceAt(int fromRarity) =>
+      Balance.mergeChance(fromRarity, mode);
+
+  SimConfig copyWith({
+    String? label,
+    double? coverage,
+    GameMode? mode,
+    int? luckCap,
+    bool? highSummons,
+  }) => SimConfig(
         label: label ?? this.label,
         coverage: coverage ?? this.coverage,
         upgradeShare: upgradeShare,
@@ -95,6 +120,8 @@ class SimConfig {
         bossHpMultiplier: bossHpMultiplier,
         startLuck: startLuck,
         mergeAnyOfRarity: mergeAnyOfRarity,
+        luckCap: luckCap ?? this.luckCap,
+        highSummons: highSummons ?? this.highSummons,
       );
 }
 
@@ -174,13 +201,29 @@ RunResult runOnce(int seed, SimConfig c, {int maxWave = 80}) {
       }
       gold -= cost;
       units.add(_roll(rng, luck));
-      _autoMerge(units, rng, anyOfRarity: c.mergeAnyOfRarity);
+      _autoMerge(units, rng, c, anyOfRarity: c.mergeAnyOfRarity);
       summons++;
     }
 
-    while (luck < Balance.luckMaxLevel && gems >= Balance.luckCost(luck)) {
+    while (luck < c.luckCap && gems >= Balance.luckCost(luck)) {
       gems -= Balance.luckCost(luck);
       luck++;
+    }
+
+    // 고급소환: 남는 다이아로. 합성까지 하나 남은 유닛이 있으면 그걸 준다.
+    while (c.highSummons && gems >= Balance.highSummonGems) {
+      final full = units.length >= c.slots;
+      final sellAt = full ? _autoSellIndex(units) : -1;
+      if (full && sellAt < 0) {
+        break;
+      }
+      if (full) {
+        gold += Balance.sellPrice[units[sellAt].$1];
+        units.removeAt(sellAt);
+      }
+      gems -= Balance.highSummonGems;
+      units.add(_highSummonTarget(units) ?? _rollHigh(rng, luck));
+      _autoMerge(units, rng, c, anyOfRarity: c.mergeAnyOfRarity);
     }
 
     final isBoss = w % Balance.bossEvery == 0;
@@ -256,9 +299,55 @@ Unit _roll(math.Random rng, int luck) {
   return (0, rng.nextInt(kTypesPerRarity[0]));
 }
 
+/// 자동 합성. 도박(어려움의 초월 합성)이면 실패할 수 있고, 실패하면
+/// 재료가 [Balance.mergeFailLoss] 개 사라진다.
+///
+/// 게임에서는 도박을 자동으로 걸지 않지만(플레이어가 고른다) 시뮬레이터는
+/// «늘 건다» 로 본다 — 기댓값이 1.19배라 거는 쪽이 이득이기 때문이다.
+/// 유니크 이상 확정 소환.
+Unit _rollHigh(math.Random rng, int luck) {
+  final weights = Balance.summonWeights(luck).sublist(2);
+  final total = weights.fold<double>(0, (a, b) => a + b);
+  var pick = rng.nextDouble() * total;
+  for (var i = 0; i < weights.length; i++) {
+    if (pick < weights[i]) {
+      return (i + 2, rng.nextInt(kTypesPerRarity[i + 2]));
+    }
+    pick -= weights[i];
+  }
+  return (2, rng.nextInt(kTypesPerRarity[2]));
+}
+
+/// `pickHighSummonTarget` 의 사본. 규칙이 바뀌면 여기도 같이 고친다.
+///
+/// 합성까지 하나 남은 유닛 중 가장 높은 등급. 소환으로 나올 수 있는 등급
+/// (유니크 ~ 레전더리)만 겨냥한다.
+Unit? _highSummonTarget(List<Unit> units) {
+  const lowest = 2;
+  final highest = Balance.summonWeights(0).length - 1;
+  final counts = <Unit, int>{};
+  for (final u in units) {
+    counts.update(u, (v) => v + 1, ifAbsent: () => 1);
+  }
+  Unit? best;
+  for (final e in counts.entries) {
+    if (e.key.$1 < lowest || e.key.$1 > highest) {
+      continue;
+    }
+    if (e.value != Balance.mergeCount - 1) {
+      continue;
+    }
+    if (best == null || e.key.$1 > best.$1) {
+      best = e.key;
+    }
+  }
+  return best;
+}
+
 void _autoMerge(
   List<Unit> units,
-  math.Random rng, {
+  math.Random rng,
+  SimConfig config, {
   required bool anyOfRarity,
 }) {
   while (true) {
@@ -280,9 +369,12 @@ void _autoMerge(
       return;
     }
     final rarity = anyOfRarity ? hit as int : (hit as Unit).$1;
+    final chance = config.mergeChanceAt(rarity);
+    final failed = chance < 1 && rng.nextDouble() >= chance;
+    final burn = failed ? Balance.mergeFailLoss : Balance.mergeCount;
     var removed = 0;
     units.removeWhere((u) {
-      if (removed >= Balance.mergeCount) {
+      if (removed >= burn) {
         return false;
       }
       final match = anyOfRarity ? u.$1 == rarity : u == hit;
@@ -291,7 +383,9 @@ void _autoMerge(
       }
       return match;
     });
-    units.add((rarity + 1, rng.nextInt(kTypesPerRarity[rarity + 1])));
+    if (!failed) {
+      units.add((rarity + 1, rng.nextInt(kTypesPerRarity[rarity + 1])));
+    }
   }
 }
 
@@ -454,6 +548,128 @@ double _clearRate(SimConfig c) {
   return cleared / _seeds * 100;
 }
 
+/// 이 게임이 정말 «운빨» 인지 재는 자.
+///
+/// 실력(커버리지)을 고정하면 판마다 다른 건 뽑기 운뿐이다. 그래서 두 가지를 본다.
+///  1. **운빨 폭** — 같은 실력으로 여러 판을 돌렸을 때 전투력이 얼마나 갈리는지.
+///     1.0 에 가까우면 어떤 판이든 결국 같은 보드가 된다는 뜻이다.
+///  2. **실력별 도달률** — 실력을 바꿔 가며 잰 도달률. 0%→100% 로 튀면 당락을
+///     가르는 건 실력이고, 실력이 달라도 비슷하면 운이 가른다.
+///
+/// 폭을 재는 동안에는 죽어서 판이 끊기지 않도록 체력 곡선만 쉬움으로 바꾼다.
+/// 합성 규칙과 피해 보정은 원래 모드 그대로다.
+void _luck() {
+  const waves = [20, 40, 60, 80, 100];
+  stdout.writeln('운빨 폭 — 같은 실력, 판마다 벌어지는 전투력 (p90 ÷ p10)');
+  stdout.writeln('1.0 에 가까우면 운이 아무것도 바꾸지 못한다는 뜻이다.');
+  stdout.writeln('─' * 52);
+  stdout.writeln(
+    '${_pad("모드", 9)}${waves.map((w) => _pad("$w웨", 8)).join()}',
+  );
+  for (final mode in GameMode.values) {
+    final config = SimConfig(
+      mode: mode,
+      enemyHp: (w) => Balance.enemyHp(w, GameMode.easy),
+    );
+    final byWave = <int, List<double>>{};
+    for (var s = 0; s < _seeds; s++) {
+      for (final snap in runOnce(s, config, maxWave: Balance.clearWave).waves) {
+        byWave.putIfAbsent(snap.wave, () => []).add(snap.have);
+      }
+    }
+    final cells = [
+      for (final w in waves)
+        _pad(_spread(byWave[w], _seeds)?.toStringAsFixed(2) ?? '-', 8),
+    ];
+    stdout.writeln('${_pad(mode.label, 9)}${cells.join()}');
+  }
+
+  stdout.writeln('');
+  stdout.writeln('실력별 ${Balance.clearWave}웨이브 도달률 — 평평할수록 운이 가른다');
+  stdout.writeln('─' * 52);
+  const skills = [0.55, 0.65, 0.70, 0.75, 0.80];
+  stdout.writeln(
+    '${_pad("모드", 9)}'
+    '${skills.map((c) => _pad(c.toStringAsFixed(2), 8)).join()}',
+  );
+  for (final mode in GameMode.values) {
+    if (mode.isEndless) {
+      continue;
+    }
+    final cells = [
+      for (final skill in skills)
+        _pad(
+          '${_clearRate(SimConfig(mode: mode, coverage: skill)).toStringAsFixed(0)}%',
+          8,
+        ),
+    ];
+    stdout.writeln('${_pad(mode.label, 9)}${cells.join()}');
+  }
+}
+
+/// [values] 의 p90 ÷ p10. 표본이 모자라면 null.
+double? _spread(List<double>? values, int seeds) {
+  if (values == null || values.length < seeds / 2) {
+    return null;
+  }
+  final sorted = [...values]..sort();
+  final low = sorted[(sorted.length * 0.1).floor()];
+  final high = sorted[math.min(sorted.length - 1, (sorted.length * 0.9).floor())];
+  return low == 0 ? null : high / low;
+}
+
+/// 다이아를 어디에 쓰는 게 이득인지.
+///
+/// 다이아 수입은 한 판에 95개(보스 10번)인데 행운을 끝까지 올리는 데만 225개가
+/// 든다. 한 판에 다 채울 수 없으니 «언제나 행운» 이 최적이 되기 쉽고, 그러면
+/// 고급소환은 눌러 볼 이유가 없는 버튼이 된다. 그 구도를 숫자로 본다.
+void _gems() {
+  final income = [
+    for (var w = Balance.bossEvery; w <= Balance.clearWave; w += Balance.bossEvery)
+      Balance.bossGems(w),
+  ].fold<int>(0, (a, b) => a + b);
+  var luckTotal = 0;
+  for (var lv = 0; lv < Balance.luckMaxLevel; lv++) {
+    luckTotal += Balance.luckCost(lv);
+  }
+  stdout.writeln(
+    '다이아 수입 ${Balance.clearWave}웨이브까지 $income개 · '
+    '행운 끝까지 올리는 값 $luckTotal개 · 고급소환 ${Balance.highSummonGems}개',
+  );
+  stdout.writeln('─' * 62);
+  stdout.writeln(
+    '${_pad("다이아 쓰는 법", 26)}${_pad("무한", 8)}'
+    '${_pad("보통", 8)}어려움',
+  );
+
+  final policies = <(String, SimConfig Function(GameMode))>[
+    ('전부 행운', (m) => SimConfig(mode: m)),
+    (
+      '전부 고급소환',
+      (m) => SimConfig(mode: m, luckCap: 0, highSummons: true),
+    ),
+    for (final cap in [6, 10, 14])
+      (
+        '행운 $cap렙까지 → 고급소환',
+        (m) => SimConfig(mode: m, luckCap: cap, highSummons: true),
+      ),
+  ];
+
+  for (final (label, make) in policies) {
+    final ends = [
+      for (var s = 0; s < _seeds; s++)
+        runOnce(s, make(GameMode.endless), maxWave: 150).endedAt,
+    ]..sort();
+    final endless = (ends[(_seeds - 1) ~/ 2] + ends[_seeds ~/ 2]) / 2;
+    stdout.writeln(
+      '${_pad(label, 26)}'
+      '${_pad("${endless.toStringAsFixed(0)}웨", 8)}'
+      '${_pad("${_clearRate(make(GameMode.normal)).toStringAsFixed(0)}%", 8)}'
+      '${_clearRate(make(GameMode.hard)).toStringAsFixed(0)}%',
+    );
+  }
+}
+
 void _curve(GameMode mode) {
   final skilled = const SimConfig().copyWith(mode: mode);
   final byWave = <int, List<double>>{};
@@ -504,7 +720,7 @@ void _levers() {
     SimConfig(label: '등급 배율 4.2×', damage: _geometric(4.2)),
     const SimConfig(label: '합성: 같은 등급 아무 3개', mergeAnyOfRarity: true),
     const SimConfig(label: '슬롯 24칸', slots: 24),
-    SimConfig(label: '소환 비용 계수 4', summonCost: (n) => 20 + 4 * n),
+    SimConfig(label: '소환 비용 계수 6', summonCost: (n) => 24 + 6 * n),
     const SimConfig(label: '라이프 30', lives: 30),
     const SimConfig(label: '웨이브 간격 26초', waveInterval: 26),
     const SimConfig(label: '보스 체력 ×20', bossHpMultiplier: 20),
@@ -543,12 +759,18 @@ List<double> _geometric(double step) {
 void main(List<String> args) {
   if (args.contains('--levers')) {
     _levers();
+  } else if (args.contains('--luck')) {
+    _luck();
+  } else if (args.contains('--gems')) {
+    _gems();
   } else if (args.contains('--curve')) {
     _curve(
       args.contains('--easy')
           ? GameMode.easy
           : args.contains('--normal')
           ? GameMode.normal
+          : args.contains('--hard')
+          ? GameMode.hard
           : GameMode.endless,
     );
   } else {

@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../game/components/render_utils.dart';
 import '../game/data/balance.dart';
+import '../game/data/game_mode.dart';
 import '../game/data/rarity.dart';
 import '../game/data/unit_catalog.dart';
 import 'theme.dart';
 
 /// 소환 확률과 전체 유닛 도감을 보여주는 바텀시트.
-Future<void> showCodexSheet(BuildContext context, int luckLevel) {
+Future<void> showCodexSheet(
+  BuildContext context,
+  int luckLevel,
+  GameMode mode,
+) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: GameColors.panel,
@@ -15,14 +20,18 @@ Future<void> showCodexSheet(BuildContext context, int luckLevel) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),
-    builder: (context) => _CodexSheet(luckLevel: luckLevel),
+    builder: (context) => _CodexSheet(luckLevel: luckLevel, mode: mode),
   );
 }
 
 class _CodexSheet extends StatelessWidget {
-  const _CodexSheet({required this.luckLevel});
+  const _CodexSheet({required this.luckLevel, required this.mode});
 
   final int luckLevel;
+
+  /// 어려움에서는 초월의 피해가 다르므로([Balance.rarityDamageBonus])
+  /// 도감도 고른 모드 기준으로 보여준다.
+  final GameMode mode;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +94,7 @@ class _CodexSheet extends StatelessWidget {
                     rate: rarity.index < rates.length
                         ? rates[rarity.index]
                         : null,
+                    dpsBonus: Balance.rarityDamageBonus(rarity.index, mode),
                   ),
               ],
             ),
@@ -96,10 +106,17 @@ class _CodexSheet extends StatelessWidget {
 }
 
 class _RaritySection extends StatelessWidget {
-  const _RaritySection({required this.rarity, required this.rate});
+  const _RaritySection({
+    required this.rarity,
+    required this.rate,
+    required this.dpsBonus,
+  });
 
   final Rarity rarity;
   final double? rate;
+
+  /// 모드 보정. 1 이 아니면 유닛 줄에 배수를 같이 적는다.
+  final double dpsBonus;
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +169,7 @@ class _RaritySection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          for (final unit in units) _UnitRow(unit: unit),
+          for (final unit in units) _UnitRow(unit: unit, dpsBonus: dpsBonus),
         ],
       ),
     );
@@ -160,9 +177,10 @@ class _RaritySection extends StatelessWidget {
 }
 
 class _UnitRow extends StatelessWidget {
-  const _UnitRow({required this.unit});
+  const _UnitRow({required this.unit, required this.dpsBonus});
 
   final UnitSpec unit;
+  final double dpsBonus;
 
   @override
   Widget build(BuildContext context) {
@@ -236,9 +254,10 @@ class _UnitRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'DPS ${formatNumber(unit.dps)}',
-                style: const TextStyle(
-                  color: GameColors.text,
+                'DPS ${formatNumber(unit.dps * dpsBonus)}'
+                '${dpsBonus == 1 ? '' : ' (×${dpsBonus.toStringAsFixed(0)})'}',
+                style: TextStyle(
+                  color: dpsBonus == 1 ? GameColors.text : GameColors.gold,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                 ),

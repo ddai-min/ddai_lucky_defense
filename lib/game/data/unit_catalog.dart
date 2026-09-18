@@ -327,6 +327,11 @@ const List<UnitSpec> kUnitCatalog = <UnitSpec>[
   ),
 
   // ── 초월 ──────────────────────────────────────────────
+  // 셋 다 DPS 는 같다(약 62,500). 갈리는 건 공격 방식과 사거리뿐이라, 합성에서
+  // 무엇이 나오든 기본 전투력은 그대로다 — 어려움의 도박 기댓값이 등급 기본치로
+  // 계산돼 있어서(Balance.hardTopTierDamage) 여기가 벌어지면 그 계산이 틀어진다.
+  // 다만 «종말의신» 의 즉사는 DPS 밖의 덤이라 시뮬레이터에 잡히지 않는다.
+  // 많이 뽑으면 실제로는 그만큼 더 세다 — 그것도 운이다.
   UnitSpec(
     'creator',
     '창세의신',
@@ -337,6 +342,27 @@ const List<UnitSpec> kUnitCatalog = <UnitSpec>[
     spd: 1.20,
     rng: 1.25,
     param: 1.70,
+  ),
+  UnitSpec(
+    'ender',
+    '종말의신',
+    '☄️',
+    Rarity.transcendent,
+    AttackStyle.execute,
+    dmg: 1.75,
+    spd: 1.10,
+    rng: 1.15,
+    param: 0.15,
+  ),
+  UnitSpec(
+    'judge',
+    '심판의신',
+    '⚖️',
+    Rarity.transcendent,
+    AttackStyle.single,
+    dmg: 2.10,
+    spd: 0.92,
+    rng: 1.05,
   ),
 ];
 
@@ -383,6 +409,39 @@ UnitSpec rollHighSummon(math.Random rng, int luckLevel) {
 UnitSpec randomOfRarity(math.Random rng, Rarity rarity) {
   final pool = kUnitsByRarity[rarity]!;
   return pool[rng.nextInt(pool.length)];
+}
+
+/// 고급소환이 겨냥할 유닛. 없으면 null(그때는 유니크 이상 무작위).
+///
+/// 등급만 보장하고 종류는 복불복이면, 비싼 값을 치르고도 쓸모없는 유닛이 나온다
+/// — 유니크만 해도 4종이라 필요한 게 나올 확률이 1/4 이다. 그래서 **합성까지
+/// 하나 남은 유닛**(2개 보유)이 있으면 그걸 준다. 여러 개면 가장 높은 등급.
+///
+/// 소환으로 나올 수 있는 등급(유니크~레전더리)만 겨냥한다. 신화 이상은 합성
+/// 전용이라 그걸 돈 주고 사게 하면 등급 규칙이 깨진다.
+///
+/// 순수 함수라 게임 상태 없이 그대로 검증할 수 있다.
+UnitSpec? pickHighSummonTarget(List<UnitSpec> specs) {
+  final counts = <String, int>{};
+  for (final spec in specs) {
+    counts.update(spec.id, (v) => v + 1, ifAbsent: () => 1);
+  }
+
+  UnitSpec? best;
+  // 도감 순서(등급 오름차순)로 훑어 같은 등급이면 앞쪽을 고른다 — 결과가
+  // 보유 순서에 따라 흔들리지 않아야 미리 보기와 실제가 어긋나지 않는다.
+  for (final spec in kUnitCatalog) {
+    if (counts[spec.id] != Balance.mergeCount - 1) {
+      continue;
+    }
+    if (!spec.rarity.summonable || spec.rarity.index < Rarity.unique.index) {
+      continue;
+    }
+    if (best == null || spec.rarity.index > best.rarity.index) {
+      best = spec;
+    }
+  }
+  return best;
 }
 
 /// 자리가 없을 때 자동으로 팔아 치울 유닛의 인덱스. 후보가 없으면 -1.

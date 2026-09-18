@@ -31,10 +31,27 @@ double _arrowOpacity(WidgetTester tester, IconData icon) {
       .opacity;
 }
 
+/// 합성 도박의 결과를 고정한다. [roll] 이 성공 확률보다 작으면 성공이다.
+class _FixedRandom implements math.Random {
+  _FixedRandom(this.roll);
+
+  final double roll;
+
+  @override
+  double nextDouble() => roll;
+
+  @override
+  int nextInt(int max) => 0;
+
+  @override
+  bool nextBool() => false;
+}
+
 /// 실제 화면 구조 그대로, 시드를 고정한 게임을 띄운다.
 Future<LuckyDefenseGame> _boot(
   WidgetTester tester, {
   int seed = 42,
+  math.Random? random,
   RecordStore? records,
 }) async {
   tester.view
@@ -49,7 +66,7 @@ Future<LuckyDefenseGame> _boot(
       gameFactory: () {
         game = LuckyDefenseGame(
           state: GameState(),
-          random: math.Random(seed),
+          random: random ?? math.Random(seed),
           records: records ?? MemoryRecordStore(),
         );
         return game;
@@ -303,9 +320,138 @@ void main() {
     // 아래 두 값을 복사해 쓴다. 여기가 깨지면 시뮬레이터도 같이 고쳐야 한다.
     expect(
       [for (final r in Rarity.values) kUnitsByRarity[r]!.length],
-      [4, 4, 4, 4, 4, 3, 1], // kTypesPerRarity
+      [4, 4, 4, 4, 4, 3, 3], // kTypesPerRarity
     );
     expect(FieldLayout.maxSlots, 21); // kSlots
+
+    // 시뮬레이터의 _highSummonTarget 은 «유니크 = 2번 칸», «소환 가능한 최고
+    // 등급 = 소환 가중치의 마지막 칸» 을 가정한다.
+    expect(Rarity.unique.index, 2);
+    expect(
+      Rarity.values.where((r) => r.summonable).length,
+      Balance.summonWeights(0).length,
+    );
+  });
+
+  test('초월 셋은 DPS 가 같고 공격 방식만 다르다', () {
+    final units = kUnitsByRarity[Rarity.transcendent]!;
+    expect(units.length, greaterThan(1), reason: '합성했을 때 무엇이 나올지 갈린다');
+    expect(
+      units.map((u) => u.style).toSet().length,
+      units.length,
+      reason: '공격 방식이 겹치면 종류를 늘린 보람이 없다',
+    );
+
+    // 어느 초월이 나오든 판이 기울지 않아야 한다. 도박의 기댓값이 등급 기본치로
+    // 계산돼 있어서(Balance.hardTopTierDamage), 여기가 벌어지면 그 계산도 틀어진다.
+    final dps = units.map((u) => u.dps).toList();
+    expect(
+      dps.reduce(math.max) / dps.reduce(math.min),
+      lessThan(1.03),
+      reason: 'DPS: $dps',
+    );
+  });
+
+  group('어려움: 초월 합성 도박', () {
+    final myth = kUnitsByRarity[Rarity.mythic]!.first;
+
+    test('도박은 어려움의 초월 합성 하나뿐이다', () {
+      for (final mode in GameMode.values) {
+        for (var r = 0; r < Rarity.values.length - 1; r++) {
+          final chance = Balance.mergeChance(r, mode);
+          final gamble = mode == GameMode.hard && r == Rarity.mythic.index;
+          expect(
+            chance,
+            gamble ? Balance.hardMergeChance : 1,
+            reason: '${mode.label} · ${Rarity.values[r].label}',
+          );
+        }
+      }
+    });
+
+    test('초월 보너스도 어려움에서만 붙는다', () {
+      for (final mode in GameMode.values) {
+        for (final rarity in Rarity.values) {
+          final boosted =
+              mode == GameMode.hard && rarity == Rarity.transcendent;
+          expect(
+            Balance.rarityDamageBonus(rarity.index, mode),
+            boosted ? Balance.hardTopTierDamage : 1,
+            reason: '${mode.label} · ${rarity.label}',
+          );
+        }
+      }
+    });
+
+    testWidgets('성공하면 재료 3기가 초월 1기가 된다', (tester) async {
+      final game = await _boot(tester, random: _FixedRandom(0));
+      game.setMode(GameMode.hard);
+      game.startGame();
+      game.placeUnits(myth, Balance.mergeCount);
+
+      expect(game.mergeOnce(specId: myth.id), isTrue);
+      await tester.pump();
+
+      expect(game.units.length, 1);
+      expect(game.units.single.spec.rarity, Rarity.transcendent);
+      expect(game.state.totalMerges, 1);
+      expect(game.state.failedMerges, 0);
+    });
+
+    testWidgets('실패하면 ${Balance.mergeFailLoss}기만 사라지고 아무것도 안 나온다', (
+      tester,
+    ) async {
+      final game = await _boot(tester, random: _FixedRandom(0.99));
+      game.setMode(GameMode.hard);
+      game.startGame();
+      game.placeUnits(myth, Balance.mergeCount);
+
+      expect(game.mergeOnce(specId: myth.id), isTrue);
+      await tester.pump();
+
+      expect(game.units.length, Balance.mergeCount - Balance.mergeFailLoss);
+      expect(game.units.single.spec.id, myth.id, reason: '남은 건 재료 그대로다');
+      expect(game.state.totalMerges, 0);
+      expect(game.state.failedMerges, 1);
+      expect(game.unitCounts[myth.id], game.units.length);
+    });
+
+    testWidgets('다른 모드에서는 같은 합성이 확정이다', (tester) async {
+      final game = await _boot(tester, random: _FixedRandom(0.99));
+      game.setMode(GameMode.normal);
+      game.startGame();
+      game.placeUnits(myth, Balance.mergeCount);
+
+      expect(game.mergeOnce(specId: myth.id), isTrue);
+      await tester.pump();
+
+      expect(game.units.single.spec.rarity, Rarity.transcendent);
+      expect(game.state.failedMerges, 0);
+    });
+
+    testWidgets('자동 합성은 도박을 걸지 않는다', (tester) async {
+      final game = await _boot(tester, random: _FixedRandom(0.99));
+      game.setMode(GameMode.hard);
+      game.startGame();
+      final normal = kUnitsByRarity[Rarity.normal]!.first;
+      game
+        ..placeUnits(myth, Balance.mergeCount)
+        ..placeUnits(normal, Balance.mergeCount);
+      game.state.autoMerge = true;
+
+      for (var i = 0; i < 30; i++) {
+        game.update(1 / 60);
+      }
+      await tester.pump();
+
+      expect(
+        game.unitCounts[myth.id],
+        Balance.mergeCount,
+        reason: '거는 판단은 플레이어 몫이라 신화는 그대로 남는다',
+      );
+      expect(game.unitCounts[normal.id], isNull, reason: '확정 합성은 알아서 한다');
+      expect(game.state.failedMerges, 0);
+    });
   });
 
   testWidgets('클리어 모드는 ${Balance.clearWave}웨이브를 막아내면 끝난다', (tester) async {
@@ -394,6 +540,69 @@ void main() {
     expect(state.started, isFalse);
     expect(find.text('시작하기'), findsOneWidget);
     expect(state.mode, GameMode.endless, reason: '고른 모드는 남아 있다');
+  });
+
+  group('고급소환이 겨냥할 유닛 고르기', () {
+    UnitSpec of(String id) => kUnitById[id]!;
+
+    test('합성까지 하나 남은 유닛을 고른다', () {
+      final specs = [of('skeleton'), of('skeleton'), of('golem')];
+      expect(pickHighSummonTarget(specs)?.id, 'skeleton');
+    });
+
+    test('여럿이면 등급이 가장 높은 쪽', () {
+      final specs = [
+        of('skeleton'),
+        of('skeleton'),
+        of('paladin'),
+        of('paladin'),
+      ];
+      expect(pickHighSummonTarget(specs)?.id, 'paladin');
+    });
+
+    test('유니크 미만은 겨냥하지 않는다', () {
+      // 노말·레어까지 콕 집어 주면 비싼 값을 치른 보람이 없다.
+      final specs = [of('slime'), of('slime'), of('golem'), of('golem')];
+      expect(pickHighSummonTarget(specs), isNull);
+    });
+
+    test('합성 전용 등급은 겨냥하지 않는다', () {
+      // 신화 이상은 소환으로 나올 수 없다. 돈 주고 사게 하면 규칙이 깨진다.
+      final specs = [of('ancientdragon'), of('ancientdragon')];
+      expect(pickHighSummonTarget(specs), isNull);
+    });
+
+    test('이미 3개면 겨냥하지 않는다', () {
+      // 합성만 누르면 되는 상태다.
+      final specs = [of('skeleton'), of('skeleton'), of('skeleton')];
+      expect(pickHighSummonTarget(specs), isNull);
+    });
+
+    test('후보가 없으면 null', () {
+      expect(pickHighSummonTarget(const []), isNull);
+      expect(pickHighSummonTarget([of('skeleton')]), isNull);
+    });
+  });
+
+  testWidgets('고급소환은 미리 알린 유닛을 그대로 준다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    final state = game.state;
+    final target = kUnitById['skeleton']!;
+    game.placeUnits(target, Balance.mergeCount - 1);
+    await tester.pump();
+
+    expect(state.highSummonName, target.name);
+    expect(find.textContaining(target.name), findsWidgets, reason: '버튼에 뜬다');
+
+    state.gems = Balance.highSummonGems;
+    expect(game.highSummon(), isTrue);
+    await tester.pump();
+
+    expect(game.unitCounts[target.id], Balance.mergeCount);
+    expect(state.gems, 0);
+    // 하나 남은 자리를 채웠으니 이제 겨냥할 대상이 없다.
+    expect(state.highSummonName, isNull);
   });
 
   group('자동 판매 대상 고르기', () {
@@ -872,10 +1081,19 @@ void main() {
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    // 모드 카드 셋이 나란히 서도 넘치지 않는다.
+    // 모드 카드 넷이 2×2로 서도 넘치지 않는다.
     for (final mode in GameMode.values) {
       expect(find.text(mode.label), findsOneWidget, reason: mode.name);
     }
+    expect(tester.takeException(), isNull);
+
+    // 어려움을 고르면 규칙 안내가 한 줄 더 붙는다.
+    // (인트로는 이 화면 높이보다 길어서 원래 스크롤해야 한다.)
+    await tester.ensureVisible(find.text(GameMode.hard.label));
+    await tester.pump();
+    await tester.tap(find.text(GameMode.hard.label));
+    await tester.pump();
+    expect(find.textContaining('도박'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

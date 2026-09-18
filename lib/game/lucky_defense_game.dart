@@ -196,7 +196,8 @@ class LuckyDefenseGame extends FlameGame {
 
     if (state.autoMerge) {
       var merges = 0;
-      while (merges < 3 && mergeOnce()) {
+      // 도박(어려움의 초월 합성)은 자동으로 걸지 않는다. 거는 판단은 플레이어 몫.
+      while (merges < 3 && mergeOnce(certainOnly: true)) {
         merges++;
       }
     }
@@ -414,7 +415,7 @@ class LuckyDefenseGame extends FlameGame {
     if (victim == null || victim.dead) {
       return;
     }
-    final damage = spec.damage * state.damageMultiplier;
+    final damage = spec.damage * state.damageMultiplierOf(spec.rarity);
     final accent = spec.style.color;
 
     switch (spec.style) {
@@ -715,6 +716,17 @@ class LuckyDefenseGame extends FlameGame {
     state.autoSellRarity = sacrifice?.spec.rarity;
     state.autoSellRefund = sacrifice?.spec.sellPrice ?? 0;
 
+    // 고급소환이 무엇을 줄지. 자리가 없으면 자동 판매가 먼저 일어나므로,
+    // 그 유닛을 뺀 보드로 계산해야 실제로 나오는 것과 같아진다.
+    final specs = [for (final u in units) u.spec];
+    if (sacrifice != null && units.length >= layout.slotCount) {
+      specs.remove(sacrifice.spec);
+    }
+    final target = pickHighSummonTarget(specs);
+    state.highSummonName = target?.name;
+    state.highSummonEmoji = target?.emoji;
+    state.highSummonRarity = target?.rarity;
+
     var groups = 0;
     unitCounts.forEach((id, count) {
       final spec = kUnitById[id];
@@ -860,11 +872,33 @@ class LuckyDefenseGame extends FlameGame {
 
     state.gems -= Balance.highSummonGems;
     state.totalSummons++;
-    _addUnit(rollHighSummon(rng, state.luckLevel), slot, announce: true);
+    // 자리를 비운 «뒤» 의 보드로 겨냥한다. 미리 보기도 같은 기준이라 어긋나지 않는다.
+    final target = pickHighSummonTarget([for (final u in units) u.spec]);
+    _addUnit(
+      target ?? rollHighSummon(rng, state.luckLevel),
+      slot,
+      announce: true,
+    );
     return true;
   }
 
-  String? _firstMergeableId() {
+  /// 보드에 [spec] 을 [count] 기 올려 둔다. 빈 자리가 없으면 거기서 멈춘다.
+  ///
+  /// 소환은 무작위라 신화 같은 고등급을 손에 넣으려면 합성을 몇 겹씩 거쳐야
+  /// 한다. 합성 규칙 자체를 검증하려면 보드를 직접 꾸밀 수 있어야 한다.
+  @visibleForTesting
+  void placeUnits(UnitSpec spec, int count) {
+    for (var i = 0; i < count; i++) {
+      final slot = _firstFreeSlot();
+      if (slot < 0) {
+        return;
+      }
+      _addUnit(spec, slot);
+    }
+  }
+
+  /// 지금 합성할 수 있는 유닛. [certainOnly] 면 확정 합성만 고른다.
+  String? _firstMergeableId({bool certainOnly = false}) {
     String? found;
     unitCounts.forEach((id, count) {
       if (found != null) {
@@ -873,16 +907,25 @@ class LuckyDefenseGame extends FlameGame {
       final spec = kUnitById[id];
       if (spec != null &&
           spec.rarity.next != null &&
-          count >= Balance.mergeCount) {
+          count >= Balance.mergeCount &&
+          (!certainOnly || mergeChanceOf(spec) >= 1)) {
         found = id;
       }
     });
     return found;
   }
 
+  /// [spec] 3개를 합성했을 때의 성공 확률. 1 이면 확정이다.
+  double mergeChanceOf(UnitSpec spec) =>
+      Balance.mergeChance(spec.rarity.index, state.mode);
+
   /// 같은 유닛 3개를 모아 다음 등급 유닛 1개로 만든다.
-  bool mergeOnce({String? specId}) {
-    final id = specId ?? _firstMergeableId();
+  ///
+  /// 어려움에서 신화를 초월로 올릴 때만 도박이 된다([Balance.mergeChance]).
+  /// 실패하면 재료가 [Balance.mergeFailLoss] 개 사라지고 아무것도 나오지 않는다.
+  /// 자동 합성은 확정 합성만 하므로, 걸지 말지는 늘 플레이어가 고른다.
+  bool mergeOnce({String? specId, bool certainOnly = false}) {
+    final id = specId ?? _firstMergeableId(certainOnly: certainOnly);
     if (id == null) {
       return false;
     }
@@ -895,11 +938,42 @@ class LuckyDefenseGame extends FlameGame {
       return false;
     }
 
+    final chance = mergeChanceOf(group.first.spec);
+    final failed = chance < 1 && rng.nextDouble() >= chance;
     final slot = group.first.slotIndex;
-    for (var i = 0; i < Balance.mergeCount; i++) {
+    final burned = failed ? Balance.mergeFailLoss : Balance.mergeCount;
+    for (var i = 0; i < burned; i++) {
       _destroyUnit(group[i]);
     }
     _recount();
+
+    if (failed) {
+      state.failedMerges++;
+      state.showToast(
+        '합성 실패 · ${group.first.spec.name} $burned기 소멸',
+        color: 0xFFFF5C6E,
+      );
+      fieldRoot.add(
+        FloatingText(
+          '실패',
+          layout.slotCenters[slot],
+          color: const Color(0xFFFF5C6E),
+          fontSize: math.max(12, layout.bandHeight * 0.24),
+          rise: layout.bandHeight * 0.6,
+        ),
+      );
+      fieldRoot.add(
+        BurstEffect(
+          layout.slotCenters[slot],
+          const Color(0xFFFF5C6E),
+          count: 10,
+          speed: layout.bandHeight * 1.2,
+          size: layout.bandHeight * 0.04,
+        ),
+      );
+      return true;
+    }
+
     _addUnit(randomOfRarity(rng, next), slot, announce: true);
     state.totalMerges++;
     fieldRoot.add(
