@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'shortcuts.dart';
+
 /// 마우스로도 스크롤 영역을 끌 수 있게 한다.
 ///
 /// Flutter 기본값(`MaterialScrollBehavior.dragDevices`)은 터치·스타일러스만
@@ -27,6 +29,41 @@ class GameColors {
   static const life = Color(0xFFFF5C6E);
   static const accent = Color(0xFF6C8CFF);
   static const green = Color(0xFF23C77E);
+}
+
+/// 버튼에 얹는 키보드 키캡. «이 키를 누르면 이 버튼» 을 알린다.
+///
+/// 키보드가 없는 기기에서는 [hasPhysicalKeyboard] 가 거짓이라 호출하는 쪽에서
+/// 아예 그리지 않는다.
+class KeyCap extends StatelessWidget {
+  const KeyCap(this.shortcut, {super.key, this.enabled = true});
+
+  final GameKey shortcut;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled ? GameColors.sub : GameColors.sub.withValues(alpha: 0.4);
+    return Container(
+      width: 16,
+      height: 16,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Text(
+        shortcut.hint,
+        style: TextStyle(
+          color: color,
+          fontSize: 9.5,
+          height: 1,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
 }
 
 /// HUD에서 쓰는 아이콘 + 수치 칩.
@@ -99,6 +136,7 @@ class ActionButton extends StatelessWidget {
     this.filled = false,
     this.height = 46,
     this.badge,
+    this.shortcut,
   });
 
   final String label;
@@ -109,6 +147,10 @@ class ActionButton extends StatelessWidget {
   final bool filled;
   final double height;
   final String? badge;
+
+  /// 이 버튼을 누르는 키보드 단축키. 키보드가 있는 환경에서만 키캡을 띄운다.
+  final GameKey? shortcut;
+
   final VoidCallback onTap;
 
   @override
@@ -166,6 +208,10 @@ class ActionButton extends StatelessWidget {
               ],
             ),
           ),
+          if (shortcut != null && hasPhysicalKeyboard) ...[
+            const SizedBox(width: 6),
+            KeyCap(shortcut!, enabled: enabled),
+          ],
         ],
       ),
     );

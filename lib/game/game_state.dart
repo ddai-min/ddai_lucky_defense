@@ -93,7 +93,10 @@ class GameState extends ChangeNotifier {
   bool get isFinished => isGameOver || isCleared;
 
   /// 클리어 모드의 마지막 웨이브에 들어섰는지. 여기서는 다음 웨이브가 없다.
-  bool get isFinalWave => !mode.isEndless && wave >= Balance.clearWave;
+  bool get isFinalWave {
+    final end = Balance.clearWave(mode);
+    return end != null && wave >= end;
+  }
   int get summonCost => Balance.summonCost(unitCount);
   bool get slotsFull => unitCount >= slotCount && slotCount > 0;
 

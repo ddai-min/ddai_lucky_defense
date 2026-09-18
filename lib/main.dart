@@ -8,6 +8,7 @@ import 'ui/control_panel.dart';
 import 'ui/result_overlay.dart';
 import 'ui/hud_bar.dart';
 import 'ui/intro_overlay.dart';
+import 'ui/shortcuts.dart';
 import 'ui/theme.dart';
 
 void main() {
@@ -74,13 +75,53 @@ class _GameScreenState extends State<GameScreen> {
       onPause: game.submitRecord,
       onDetach: game.submitRecord,
     );
+    // 포커스 트리를 타지 않고 직접 받는다. 게임 화면에는 글자를 넣는 칸이
+    // 없으므로 키를 가로챌 다른 위젯이 없고, Flame 의 GameWidget 이 포커스를
+    // 가져가도 단축키가 죽지 않는다.
+    HardwareKeyboard.instance.addHandler(_handleKey);
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKey);
     _lifecycle?.dispose();
     state.dispose();
     super.dispose();
+  }
+
+  /// 조작 패널 버튼과 같은 동작을 키보드로 부른다([GameKey]).
+  ///
+  /// 누를 때 한 번만 반응한다 — 꾹 누르고 있으면 골드가 순식간에 빠져나가므로
+  /// 자동 반복([KeyRepeatEvent])은 받지 않는다.
+  bool _handleKey(KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return false;
+    }
+    // 인트로·결과 화면과 일시정지 중에는 조작 패널이 잠기므로 키도 같이 잠근다.
+    if (!state.started || state.isFinished || state.paused) {
+      return false;
+    }
+    final shortcut = GameKey.of(event.logicalKey);
+    if (shortcut == null) {
+      return false;
+    }
+    switch (shortcut) {
+      case GameKey.summon:
+        game.summon();
+      case GameKey.highSummon:
+        game.highSummon();
+      case GameKey.attack:
+        game.upgradeAttack();
+      case GameKey.attackSpeed:
+        game.upgradeSpeed();
+      case GameKey.goldGain:
+        game.upgradeGold();
+      case GameKey.luck:
+        game.upgradeLuck();
+      case GameKey.life:
+        game.buyLife();
+    }
+    return true;
   }
 
   @override

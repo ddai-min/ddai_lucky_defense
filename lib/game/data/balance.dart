@@ -37,7 +37,10 @@ class Balance {
   static const List<int> sellPrice = [12, 38, 120, 380, 1200, 4000, 14000];
 
   // ───────────────────────── 시작 자원 ─────────────────────────
-  static const int startGold = 160;
+  /// 시작 골드. 첫 웨이브 전에 유닛 4~5기를 세울 수 있는 값으로 맞춘다
+  /// (소환 비용이 20·59·98·137·176 이라 600이면 5기). 160 이던 시절에는
+  /// 비용이 24·32·40·48 이라 같은 4기였다 — 비용을 올린 만큼 같이 올렸다.
+  static const int startGold = 600;
   static const int startGems = 0;
   static const int startLives = 20;
 
@@ -84,10 +87,15 @@ class Balance {
 
   /// 보유 유닛이 많을수록 소환 비용이 오른다. 합성이 이득인 이유.
   ///
-  /// 생각보다 훨씬 센 레버다. 20+6n 에서 28+10n 으로 올려 봤을 때 체력을
-  /// 그대로 두고도 보통 도달률이 26%에서 0%가 됐다 — 소환 횟수가 줄면 합성
-  /// 사슬이 통째로 느려지기 때문이다. 지금 값(24+8n)은 그 중간이다.
-  static int summonCost(int unitCount) => 24 + 8 * unitCount;
+  /// **체력 곡선과 묶여 있는 값이다.** 소환 횟수가 줄면 합성 사슬이 통째로
+  /// 느려져 전투력이 주저앉는다. 24+8n(최대 184G)에서 지금 값으로 올렸을 때,
+  /// 체력을 그대로 두었더니 네 모드가 전부 도달률 0% 가 됐다 — 무한도 44웨에서
+  /// 16웨로 떨어졌다. 그래서 올린 만큼 모든 모드의 체력 증가율을 함께 내렸다.
+  ///
+  /// 자리가 찬 뒤의 교체 소환이 [kSlotCount] - 1 기준 800G 다. 184G 였을 때는
+  /// 후반 수입(웨이브당 1만 골드 이상)에 견줘 사실상 공짜라, 누를수록 이득인
+  /// 버튼이었다.
+  static int summonCost(int unitCount) => 20 + 39 * unitCount;
 
   // ───────────────────────── 웨이브 ─────────────────────────
   static const double firstWaveDelay = 10;
@@ -95,8 +103,17 @@ class Balance {
   static const int bossEvery = 10;
   static const int rushEvery = 5;
 
-  /// 클리어 모드가 끝나는 웨이브.
-  static const int clearWave = 100;
+  /// 클리어 모드가 끝나는 웨이브. 무한은 끝이 없어 null 이다.
+  ///
+  /// 어려움만 150 이다. 도박이 붙어 있어 판마다 결과가 크게 갈리는 모드라,
+  /// 결승선을 멀리 두고 «운이 어디까지 따라오나» 를 더 오래 확인하게 한다.
+  /// 늘린 만큼 체력 증가율은 내렸다 — 곡선을 그대로 두고 50웨이브를 더 붙이면
+  /// 마지막 체력이 7배가 되어 아무도 못 깬다.
+  static int? clearWave(GameMode mode) => switch (mode) {
+    GameMode.easy || GameMode.normal => 100,
+    GameMode.hard => 150,
+    GameMode.endless => null,
+  };
 
   /// 1웨이브 몬스터 체력. 모든 모드가 여기서 출발한다.
   ///
@@ -116,9 +133,9 @@ class Balance {
   /// 체력을 올려, 초반이 손 놓고 있어도 되는 구간이 되지 않도록 한다.
   static double enemyHp(int wave, GameMode mode) {
     switch (mode) {
-      // 쉬움: [clearWave] 까지 갈 수 있게 완만한 지수 곡선.
+      // 쉬움: 100웨이브까지 갈 수 있게 완만한 지수 곡선.
       case GameMode.easy:
-        return baseHp * math.pow(1.10, wave - 1).toDouble();
+        return baseHp * math.pow(1.053, wave - 1).toDouble();
       // 보통: 같은 웨이브에서 끝나되 중반이 팽팽하도록 꺾인 곡선.
       // 실력 분포 전체 기준 도달률이 13% 다 — 아주 잘 해야 깨진다(숙련자 79%).
       // 못 깨는 판도 88웨이브까지는 가므로 «중반에 무너졌다» 가 아니라
@@ -128,7 +145,7 @@ class Balance {
       // «초월» 에서 멈춰 더 셀 수 없기 때문에 이 언저리가 난이도가 급격히
       // 꺾이는 지점이다.
       case GameMode.normal:
-        return _taperedHp(wave, growth: 1.186, taper: 0.9875);
+        return _taperedHp(wave, growth: 1.154, taper: 0.9875);
       // 어려움: 곡선만 보면 보통과 별로 다르지 않다. 난이도는 여기가 아니라
       // 초월 도박([hardMergeChance])에서 나온다 — 초월을 몇 기 세웠느냐로
       // 전투력이 갈리고, 이 곡선은 그 분포의 꼭대기에 결승선을 놓는다
@@ -140,12 +157,31 @@ class Balance {
       // 60웨이브 운빨 폭이 8배라 한 곡선으로 «운 나쁜 판» 과 «운 좋은 판» 을
       // 동시에 팽팽하게 만들 수는 없다 — 둘 중 하나를 골라야 한다.
       case GameMode.hard:
-        return _taperedHp(wave, growth: 1.197, taper: 0.9875);
+        return _hardHp(wave);
       // 무한: «얼마나 멀리 가나» 가 전부라 끝까지 가파르다.
       case GameMode.endless:
-        return baseHp * math.pow(1.17, wave - 1).toDouble();
+        return baseHp * math.pow(1.125, wave - 1).toDouble();
     }
   }
+
+  /// 어려움 체력. 100웨이브까지는 꺾인 곡선, 그 뒤는 거의 눕는다.
+  ///
+  /// 결승선이 150이라고 곡선을 그냥 늘리면 안 된다. 100 → 150 구간에서
+  /// [_taperedHp] 는 아직 7배가 오르는데 플레이어는 «초월» 에서 멈춰 강화분만
+  /// 늘기 때문이다 — 실제로 그대로 늘렸더니 도달률이 3%에서 **0%** 가 됐다.
+  ///
+  /// 그래서 100 이후는 웨이브당 [_hardLateGrowth] 만큼만 올린다. 앞의 100
+  /// 웨이브는 한 글자도 달라지지 않으므로, 지금까지의 어려움에 «마지막 50
+  /// 웨이브» 가 붙은 모양이 된다.
+  static double _hardHp(int wave) {
+    final knee = math.min(wave, 100);
+    final base = _taperedHp(knee, growth: 1.147, taper: 0.9875);
+    return base *
+        math.pow(_hardLateGrowth, math.max(0, wave - 100)).toDouble();
+  }
+
+  /// 100웨이브 이후 웨이브당 체력 증가율.
+  static const double _hardLateGrowth = 1.005;
 
   /// 증가율이 웨이브마다 [taper] 배씩 꺾이는 체력 곡선.
   ///

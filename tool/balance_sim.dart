@@ -95,6 +95,9 @@ class SimConfig {
       (damage ?? Balance.damage)[r] * Balance.rarityDamageBonus(r, mode),
   ];
 
+  /// 이 모드가 끝나는 웨이브. 무한이면 null.
+  int? get clearWave => Balance.clearWave(mode);
+
   /// [fromRarity] 3개를 합성할 성공 확률. 어려움의 초월 합성만 1 보다 작다.
   double mergeChanceAt(int fromRarity) =>
       Balance.mergeChance(fromRarity, mode);
@@ -450,10 +453,13 @@ void _report() {
   stdout.writeln('─' * 62);
   for (final mode in GameMode.values) {
     double hp(int w) => Balance.enemyHp(w, mode);
+    // 끝나는 웨이브가 모드마다 다르므로 그 지점 체력도 같이 보여 준다.
+    final end = Balance.clearWave(mode);
     stdout.writeln(
       '${_pad(mode.label, 7)}체력  '
       '1웨 ${_num(hp(1))} · 30웨 ${_num(hp(30))} · '
-      '60웨 ${_num(hp(60))} · 100웨 ${_num(hp(100))}',
+      '60웨 ${_num(hp(60))} · 100웨 ${_num(hp(100))}'
+      '${end == null || end == 100 ? '' : ' · $end웨 ${_num(hp(end))}'}',
     );
   }
   stdout.writeln(
@@ -479,13 +485,13 @@ void _report() {
       );
     } else {
       stdout.writeln(
-        '  ${_pad(mode.label, 7)}${Balance.clearWave}웨이브 도달률  '
+        '  ${_pad(mode.label, 7)}${Balance.clearWave(mode)}웨이브 도달률  '
         '전체 ${_clearRateAcrossSkill(mode).toStringAsFixed(0)}% '
         '(숙련자 ${_clearRate(skilled).toStringAsFixed(0)}% · '
         '라이트 ${_clearRate(casual).toStringAsFixed(0)}%)'
         '   중반 최저 여유 ${_minHeadroom(casual).toStringAsFixed(2)}'
         ' · 라이트가 멈추는 웨이브 '
-        '${_medianEnd(casual, maxWave: Balance.clearWave).toStringAsFixed(0)}',
+        '${_medianEnd(casual, maxWave: Balance.clearWave(mode)!).toStringAsFixed(0)}',
       );
     }
   }
@@ -495,7 +501,7 @@ void _report() {
 double _minHeadroom(SimConfig c) {
   final byWave = <int, List<double>>{};
   for (var s = 0; s < _seeds; s++) {
-    for (final snap in runOnce(s, c, maxWave: Balance.clearWave).waves) {
+    for (final snap in runOnce(s, c, maxWave: c.clearWave!).waves) {
       byWave.putIfAbsent(snap.wave, () => []).add(snap.headroom);
     }
   }
@@ -527,8 +533,8 @@ double _clearRateAcrossSkill(GameMode mode) {
         (kSkilledCoverage - kCasualCoverage) * i / (steps - 1);
     final config = SimConfig(mode: mode, coverage: coverage);
     for (var s = 0; s < runs; s++) {
-      if (runOnce(s, config, maxWave: Balance.clearWave).endedAt >=
-          Balance.clearWave) {
+      if (runOnce(s, config, maxWave: config.clearWave!).endedAt >=
+          config.clearWave!) {
         cleared++;
       }
     }
@@ -540,8 +546,7 @@ double _clearRateAcrossSkill(GameMode mode) {
 double _clearRate(SimConfig c) {
   var cleared = 0;
   for (var s = 0; s < _seeds; s++) {
-    if (runOnce(s, c, maxWave: Balance.clearWave).endedAt >=
-        Balance.clearWave) {
+    if (runOnce(s, c, maxWave: c.clearWave!).endedAt >= c.clearWave!) {
       cleared++;
     }
   }
@@ -573,7 +578,7 @@ void _luck() {
     );
     final byWave = <int, List<double>>{};
     for (var s = 0; s < _seeds; s++) {
-      for (final snap in runOnce(s, config, maxWave: Balance.clearWave).waves) {
+      for (final snap in runOnce(s, config, maxWave: 100).waves) {
         byWave.putIfAbsent(snap.wave, () => []).add(snap.have);
       }
     }
@@ -585,7 +590,7 @@ void _luck() {
   }
 
   stdout.writeln('');
-  stdout.writeln('실력별 ${Balance.clearWave}웨이브 도달률 — 평평할수록 운이 가른다');
+  stdout.writeln('실력별 도달률 — 평평할수록 운이 가른다 (모드마다 끝나는 웨이브가 다르다)');
   stdout.writeln('─' * 52);
   const skills = [0.55, 0.65, 0.70, 0.75, 0.80];
   stdout.writeln(
@@ -625,7 +630,9 @@ double? _spread(List<double>? values, int seeds) {
 /// 고급소환은 눌러 볼 이유가 없는 버튼이 된다. 그 구도를 숫자로 본다.
 void _gems() {
   final income = [
-    for (var w = Balance.bossEvery; w <= Balance.clearWave; w += Balance.bossEvery)
+    for (var w = Balance.bossEvery;
+        w <= Balance.clearWave(GameMode.normal)!;
+        w += Balance.bossEvery)
       Balance.bossGems(w),
   ].fold<int>(0, (a, b) => a + b);
   var luckTotal = 0;
@@ -633,7 +640,7 @@ void _gems() {
     luckTotal += Balance.luckCost(lv);
   }
   stdout.writeln(
-    '다이아 수입 ${Balance.clearWave}웨이브까지 $income개 · '
+    '다이아 수입 ${Balance.clearWave(GameMode.normal)}웨이브까지 $income개 · '
     '행운 끝까지 올리는 값 $luckTotal개 · 고급소환 ${Balance.highSummonGems}개',
   );
   stdout.writeln('─' * 62);

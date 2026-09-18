@@ -7,6 +7,7 @@ import '../game/data/rarity.dart';
 import '../game/game_state.dart';
 import '../game/lucky_defense_game.dart';
 import 'codex_sheet.dart';
+import 'shortcuts.dart';
 import 'theme.dart';
 
 /// 하단 조작 패널: 소환 / 합성 / 강화 + 선택한 유닛 정보.
@@ -130,6 +131,7 @@ class _ActionRow extends StatelessWidget {
             color: GameColors.gold,
             filled: true,
             enabled: state.canSummon,
+            shortcut: GameKey.summon,
             onTap: game.summon,
           ),
         ),
@@ -148,6 +150,7 @@ class _ActionRow extends StatelessWidget {
             sub: '${Balance.highSummonGems} 💎',
             color: state.highSummonRarity?.color ?? GameColors.gem,
             enabled: state.canHighSummon,
+            shortcut: GameKey.highSummon,
             onTap: game.highSummon,
           ),
         ),
@@ -276,6 +279,7 @@ class _UpgradeRowState extends State<_UpgradeRow> {
                   cost: '${formatNumber(state.atkCost)} G',
                   color: GameColors.life,
                   enabled: state.gold >= state.atkCost,
+                  shortcut: GameKey.attack,
                   onTap: game.upgradeAttack,
                 ),
                 _UpgradeButton(
@@ -286,6 +290,7 @@ class _UpgradeRowState extends State<_UpgradeRow> {
                   cost: '${formatNumber(state.spdCost)} G',
                   color: GameColors.accent,
                   enabled: state.gold >= state.spdCost,
+                  shortcut: GameKey.attackSpeed,
                   onTap: game.upgradeSpeed,
                 ),
                 _UpgradeButton(
@@ -296,6 +301,7 @@ class _UpgradeRowState extends State<_UpgradeRow> {
                   cost: '${formatNumber(state.goldCost)} G',
                   color: GameColors.gold,
                   enabled: state.gold >= state.goldCost,
+                  shortcut: GameKey.goldGain,
                   onTap: game.upgradeGold,
                 ),
                 _UpgradeButton(
@@ -306,6 +312,7 @@ class _UpgradeRowState extends State<_UpgradeRow> {
                   cost: state.luckMaxed ? '-' : '${state.luckCost} 💎',
                   color: GameColors.green,
                   enabled: !state.luckMaxed && state.gems >= state.luckCost,
+                  shortcut: GameKey.luck,
                   onTap: game.upgradeLuck,
                 ),
                 _UpgradeButton(
@@ -316,6 +323,7 @@ class _UpgradeRowState extends State<_UpgradeRow> {
                   cost: '${Balance.reviveGems} 💎',
                   color: GameColors.gem,
                   enabled: state.gems >= Balance.reviveGems,
+                  shortcut: GameKey.life,
                   onTap: game.buyLife,
                   levelPrefix: '보유 ',
                 ),
@@ -423,6 +431,7 @@ class _UpgradeButton extends StatelessWidget {
     required this.color,
     required this.enabled,
     required this.onTap,
+    required this.shortcut,
     this.levelPrefix = 'Lv.',
   });
 
@@ -434,6 +443,10 @@ class _UpgradeButton extends StatelessWidget {
   final Color color;
   final bool enabled;
   final String levelPrefix;
+
+  /// 이 버튼을 누르는 키보드 단축키.
+  final GameKey shortcut;
+
   final VoidCallback onTap;
 
   @override
@@ -478,6 +491,10 @@ class _UpgradeButton extends StatelessWidget {
                       height: 1.1,
                     ),
                   ),
+                  if (hasPhysicalKeyboard) ...[
+                    const SizedBox(width: 5),
+                    KeyCap(shortcut, enabled: enabled),
+                  ],
                 ],
               ),
               const SizedBox(height: 2),

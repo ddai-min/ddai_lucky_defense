@@ -9,7 +9,9 @@ import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
 import 'package:ddai_lucky_defense/game/record_store.dart';
 import 'package:ddai_lucky_defense/main.dart';
 import 'package:ddai_lucky_defense/ui/hud_bar.dart';
+import 'package:ddai_lucky_defense/ui/shortcuts.dart';
 import 'package:flame/components.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -454,23 +456,24 @@ void main() {
     });
   });
 
-  testWidgets('클리어 모드는 ${Balance.clearWave}웨이브를 막아내면 끝난다', (tester) async {
+  testWidgets('클리어 모드는 정해진 웨이브를 막아내면 끝난다', (tester) async {
     final game = await _boot(tester);
     game.setMode(GameMode.easy);
     game.startGame();
+    final end = Balance.clearWave(GameMode.easy)!;
     final state = game.state;
     state
       ..lives = 9999
-      ..wave = Balance.clearWave - 1
+      ..wave = end - 1
       ..waveCountdown = 0.05;
 
     // 마지막 웨이브가 시작된다.
     for (var i = 0; i < 60; i++) {
       game.update(1 / 60);
     }
-    expect(state.wave, Balance.clearWave);
+    expect(state.wave, end);
     expect(state.isFinalWave, isTrue);
-    expect(game.boss, isNotNull, reason: '${Balance.clearWave}웨이브는 보스 웨이브다');
+    expect(game.boss, isNotNull, reason: '$end웨이브는 보스 웨이브다');
     expect(state.isCleared, isFalse, reason: '아직 보스가 살아 있다');
 
     // 보스를 처치하면 클리어.
@@ -488,26 +491,34 @@ void main() {
     for (var i = 0; i < 60 * 40; i++) {
       game.update(1 / 60);
     }
-    expect(state.wave, Balance.clearWave);
+    expect(state.wave, end);
     expect(game.enemies, isEmpty);
   });
 
-  testWidgets('무한 모드는 ${Balance.clearWave}웨이브를 넘어 계속된다', (tester) async {
+  testWidgets('무한 모드는 끝나는 웨이브가 없다', (tester) async {
     final game = await _boot(tester);
     game.setMode(GameMode.endless);
     game.startGame();
     final state = game.state;
     state
       ..lives = 9999
-      ..wave = Balance.clearWave
+      ..wave = 100
       ..waveCountdown = 0.05;
 
+    expect(Balance.clearWave(GameMode.endless), isNull);
     expect(state.isFinalWave, isFalse);
     for (var i = 0; i < 60 * 3; i++) {
       game.update(1 / 60);
     }
-    expect(state.wave, greaterThan(Balance.clearWave));
+    expect(state.wave, greaterThan(100));
     expect(state.isCleared, isFalse);
+  });
+
+  test('어려움만 결승선이 멀다', () {
+    expect(Balance.clearWave(GameMode.easy), 100);
+    expect(Balance.clearWave(GameMode.normal), 100);
+    expect(Balance.clearWave(GameMode.hard), 150);
+    expect(Balance.clearWave(GameMode.endless), isNull);
   });
 
   testWidgets('인트로에서 모드를 고르고, 결과 화면에서 다시 고를 수 있다', (tester) async {
@@ -603,6 +614,115 @@ void main() {
     expect(state.gems, 0);
     // 하나 남은 자리를 채웠으니 이제 겨냥할 대상이 없다.
     expect(state.highSummonName, isNull);
+  });
+
+  group('키보드 단축키', () {
+    testWidgets('소환·고급소환·강화를 키로 누른다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final state = game.state;
+      state
+        ..gold = 1 << 20
+        ..gems = 1 << 10;
+      await tester.pump();
+
+      await tester.sendKeyEvent(GameKey.summon.key);
+      await tester.pump();
+      expect(game.units.length, 1, reason: 'D');
+
+      await tester.sendKeyEvent(GameKey.highSummon.key);
+      await tester.pump();
+      expect(game.units.length, 2, reason: 'F');
+      expect(
+        game.units.last.spec.rarity.index,
+        greaterThanOrEqualTo(Rarity.unique.index),
+        reason: '고급소환은 유니크 이상',
+      );
+
+      await tester.sendKeyEvent(GameKey.attack.key);
+      await tester.sendKeyEvent(GameKey.attackSpeed.key);
+      await tester.sendKeyEvent(GameKey.goldGain.key);
+      await tester.sendKeyEvent(GameKey.luck.key);
+      await tester.pump();
+      expect(state.atkLevel, 1, reason: 'Q');
+      expect(state.spdLevel, 1, reason: 'W');
+      expect(state.goldLevel, 1, reason: 'E');
+      expect(state.luckLevel, greaterThan(0), reason: 'R');
+
+      final lives = state.lives;
+      await tester.sendKeyEvent(GameKey.life.key);
+      await tester.pump();
+      expect(state.lives, lives + 1, reason: 'T');
+    });
+
+    testWidgets('인트로·일시정지 중에는 듣지 않는다', (tester) async {
+      final game = await _boot(tester);
+      final state = game.state;
+      state.gold = 1 << 20;
+
+      // 아직 시작 전(인트로).
+      await tester.sendKeyEvent(GameKey.summon.key);
+      await tester.pump();
+      expect(game.units, isEmpty, reason: '인트로가 덮고 있다');
+
+      game.startGame();
+      state.paused = true;
+      await tester.pump();
+      await tester.sendKeyEvent(GameKey.summon.key);
+      await tester.pump();
+      expect(game.units, isEmpty, reason: '멈춘 동안에는 조작 패널도 잠긴다');
+
+      state.paused = false;
+      await tester.pump();
+      await tester.sendKeyEvent(GameKey.summon.key);
+      await tester.pump();
+      expect(game.units.length, 1);
+    });
+
+    // 오버라이드는 테스트 본문이 끝나기 전에 되돌려야 한다 — 프레임워크가
+    // 본문 종료 시점에 «전역 디버그 변수가 남아 있지 않은지» 를 검사한다.
+    testWidgets('키캡은 키보드가 있는 환경에서만 뜬다', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        final game = await _boot(tester);
+        game.startGame();
+        await tester.pump();
+
+        // 강화 목록은 가로로 스크롤되므로 한 화면에 다 뜨지 않는다.
+        // 끝까지 밀어 가며 모은다.
+        final seen = <String>{};
+        void collect() {
+          for (final shortcut in GameKey.values) {
+            if (find.text(shortcut.hint).evaluate().isNotEmpty) {
+              seen.add(shortcut.hint);
+            }
+          }
+        }
+
+        collect();
+        await tester.drag(find.byType(ListView), const Offset(-400, 0));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        collect();
+
+        expect(seen, {for (final s in GameKey.values) s.hint});
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('폰에서는 키캡을 띄우지 않는다', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final game = await _boot(tester);
+        game.startGame();
+        await tester.pump();
+
+        expect(find.text(GameKey.summon.hint), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
   });
 
   group('자동 판매 대상 고르기', () {

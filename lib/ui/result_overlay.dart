@@ -63,7 +63,7 @@ class ResultOverlay extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     cleared
-                        ? '${Balance.clearWave} 웨이브를 모두 막아냈습니다'
+                        ? '${Balance.clearWave(state.mode)} 웨이브를 모두 막아냈습니다'
                         : '${state.wave} 웨이브에서 무너졌습니다',
                     style: const TextStyle(
                       color: GameColors.sub,

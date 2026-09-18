@@ -35,7 +35,7 @@ class HudBar extends StatelessWidget {
                   _WaveBadge(
                     wave: state.wave,
                     best: state.best.wave,
-                    total: state.mode.isEndless ? null : Balance.clearWave,
+                    total: Balance.clearWave(state.mode),
                   ),
                   const SizedBox(width: 8),
                   StatChip(

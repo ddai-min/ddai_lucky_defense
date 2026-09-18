@@ -640,7 +640,7 @@ class LuckyDefenseGame extends FlameGame {
     fieldRoot.add(
       WaveBanner(
         '정복 완료',
-        'WAVE ${Balance.clearWave} CLEAR',
+        'WAVE ${Balance.clearWave(state.mode)} CLEAR',
         const Color(0xFFFFD34E),
         Vector2(layout.size.x / 2, layout.size.y * 0.40),
       ),

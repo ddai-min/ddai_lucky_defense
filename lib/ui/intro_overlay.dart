@@ -212,7 +212,9 @@ class _ModeCard extends StatelessWidget {
             ),
             const SizedBox(height: 3),
             Text(
-              mode.description,
+              mode.isEndless
+                  ? '끝없이 · ${mode.tagline}'
+                  : '${Balance.clearWave(mode)} 웨이브 · ${mode.tagline}',
               maxLines: 2,
               style: TextStyle(
                 color: selected ? color : GameColors.sub,
