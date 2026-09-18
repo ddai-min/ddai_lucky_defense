@@ -619,6 +619,135 @@ void main() {
     expect(state.highSummonName, isNull);
   });
 
+  group('유닛별 처치 수', () {
+    testWidgets('마지막 일격을 넣은 유닛에게 킬이 붙는다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final state = game.state;
+      // 한 종류만 세워 두면 누가 잡았는지가 분명하다.
+      final paladin = kUnitById['paladin']!;
+      game.placeUnits(paladin, 3);
+      state.waveCountdown = 0.05;
+      await tester.pump();
+
+      for (var i = 0; i < 60 * 25 && state.totalKills == 0; i++) {
+        game.update(1 / 60);
+      }
+      await tester.pump();
+
+      expect(state.totalKills, greaterThan(0), reason: '뭔가는 잡았어야 한다');
+      expect(state.killsByUnit[paladin.id], state.totalKills);
+    });
+
+    testWidgets('중독으로 죽으면 중독을 건 유닛이 가져간다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final state = game.state;
+      // 독거미는 중독만 건다. 도트가 터지는 시점에는 이미 다른 일이 일어난 뒤라,
+      // 출처를 기억해 두지 않으면 킬이 아무에게도 안 붙는다.
+      final spider = kUnitById['spider']!;
+      game.placeUnits(spider, 3);
+      state.waveCountdown = 0.05;
+      await tester.pump();
+
+      for (var i = 0; i < 60 * 25 && state.totalKills == 0; i++) {
+        game.update(1 / 60);
+      }
+      await tester.pump();
+
+      expect(state.totalKills, greaterThan(0));
+      expect(state.killsByUnit[spider.id], state.totalKills);
+    });
+
+    testWidgets('드롭다운이 우측 상단에서 열리고 유닛별로 보여 준다', (tester) async {
+      final game = await _boot(tester);
+      // 시작 전에는 보여 줄 게 없으니 아예 안 뜬다.
+      expect(find.text('💀'), findsNothing);
+
+      game.startGame();
+      final state = game.state;
+      state
+        ..totalKills = 9
+        ..killsByUnit['slime'] = 6
+        ..killsByUnit['golem'] = 3;
+      await tester.pump();
+
+      // 접힌 상태에서는 합계만 보인다.
+      expect(find.text('9'), findsOneWidget);
+      expect(find.text('슬라임'), findsNothing);
+
+      await tester.tap(find.text('9'));
+      await tester.pump();
+
+      expect(find.text('유닛별 처치'), findsOneWidget);
+      expect(find.text('슬라임'), findsOneWidget);
+      expect(find.text('6'), findsOneWidget);
+      expect(find.text('돌골렘'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+
+      // 다시 누르면 접힌다.
+      await tester.tap(find.text('9'));
+      await tester.pump();
+      expect(find.text('유닛별 처치'), findsNothing);
+    });
+
+    testWidgets('낮은 화면에서 목록을 다 펼쳐도 넘치지 않는다', (tester) async {
+      tester.view
+        ..physicalSize = const Size(720, 1120) // 360x560, 필드가 아주 낮다
+        ..devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      late LuckyDefenseGame game;
+      await tester.pumpWidget(
+        LuckyDefenseApp(
+          gameFactory: () {
+            game = LuckyDefenseGame(
+              state: GameState(),
+              random: math.Random(1),
+              records: MemoryRecordStore(),
+              leaderboard: MemoryLeaderboard(isAvailable: false),
+            );
+            return game;
+          },
+        ),
+      );
+      await tester.pump();
+      game.startGame();
+
+      // 도감에 있는 유닛이 전부 한 번씩은 잡은, 가장 긴 목록.
+      var total = 0;
+      for (final spec in kUnitCatalog) {
+        game.state.killsByUnit[spec.id] = 1234;
+        total += 1234;
+      }
+      game.state.totalKills = total;
+      await tester.pump();
+
+      // 칼럼은 필드 높이만큼 늘어나 있으므로 토글을 콕 집어 누른다.
+      // (빈 칸은 포인터를 먹지 않고 게임으로 넘어간다.)
+      await tester.tap(find.text('💀'));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      // 1234 는 «1,234» 로 줄여 쓴다 — 세 자리가 넘어가면 칸을 밀어낸다.
+      expect(find.text('1,234'), findsWidgets);
+    });
+
+    testWidgets('다시 시작하면 집계가 비워진다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      game.state
+        ..totalKills = 5
+        ..killsByUnit['slime'] = 5;
+
+      game.restart();
+      await tester.pump();
+
+      expect(game.state.killsByUnit, isEmpty);
+      expect(game.state.totalKills, 0);
+    });
+  });
+
   group('랭킹', () {
     test('이름을 다듬는다', () {
       expect(normalizeRankName('  택민  '), '택민');

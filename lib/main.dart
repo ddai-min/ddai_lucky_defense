@@ -8,6 +8,7 @@ import 'ui/control_panel.dart';
 import 'ui/result_overlay.dart';
 import 'ui/hud_bar.dart';
 import 'ui/intro_overlay.dart';
+import 'ui/kill_board.dart';
 import 'ui/shortcuts.dart';
 import 'ui/theme.dart';
 
@@ -174,6 +175,21 @@ class _GameScreenState extends State<GameScreen> {
                                     right: 12,
                                     bottom: 12,
                                     child: _PauseButton(game: game),
+                                  ),
+                                  // 유닛별 처치 수. 게임이 도는 동안에도 계속
+                                  // 갱신되므로 상태를 구독한다.
+                                  // bottom 을 같이 줘야 아래쪽 제약이 생긴다 —
+                                  // top 만 주면 높이가 unbounded 라, 목록이 길 때
+                                  // 필드를 넘어 조작 패널 위까지 그려진다.
+                                  Positioned(
+                                    right: 12,
+                                    top: 12,
+                                    bottom: 12,
+                                    child: AnimatedBuilder(
+                                      animation: state,
+                                      builder: (context, _) =>
+                                          KillBoard(state: state),
+                                    ),
                                   ),
                                 ],
                               ),

@@ -427,7 +427,7 @@ class LuckyDefenseGame extends FlameGame {
 
     switch (spec.style) {
       case AttackStyle.single:
-        victim.takeDamage(damage);
+        victim.takeDamage(damage, by: spec.id);
 
       case AttackStyle.splash:
         final radius = spec.param * layout.bandHeight;
@@ -446,18 +446,19 @@ class LuckyDefenseGame extends FlameGame {
             damage * falloff,
             color: accent,
             showText: identical(e, victim),
+            by: spec.id,
           );
         }
 
       case AttackStyle.slow:
         victim
-          ..takeDamage(damage, color: accent)
+          ..takeDamage(damage, color: accent, by: spec.id)
           ..applySlow(spec.param, kSlowDuration);
 
       case AttackStyle.poison:
         victim
-          ..takeDamage(damage, color: accent)
-          ..applyPoison(damage * spec.param, kPoisonDuration);
+          ..takeDamage(damage, color: accent, by: spec.id)
+          ..applyPoison(damage * spec.param, kPoisonDuration, by: spec.id);
 
       case AttackStyle.chain:
         final maxTargets = spec.param.toInt();
@@ -473,6 +474,7 @@ class LuckyDefenseGame extends FlameGame {
             currentDamage,
             color: accent,
             showText: hit.length <= 2,
+            by: spec.id,
           );
           currentDamage *= 0.84;
           final next = _nearestExcluding(current.position, chainRange, hit);
@@ -486,13 +488,13 @@ class LuckyDefenseGame extends FlameGame {
         }
 
       case AttackStyle.execute:
-        victim.takeDamage(damage, color: accent);
+        victim.takeDamage(damage, color: accent, by: spec.id);
         if (!victim.dead && !victim.isBoss && rng.nextDouble() < spec.param) {
-          victim.execute();
+          victim.execute(by: spec.id);
         }
 
       case AttackStyle.greed:
-        victim.takeDamage(damage, color: accent);
+        victim.takeDamage(damage, color: accent, by: spec.id);
         if (rng.nextDouble() < spec.param) {
           final bonus = math.max(
             1,
@@ -546,7 +548,8 @@ class LuckyDefenseGame extends FlameGame {
     );
   }
 
-  void onEnemyKilled(EnemyComponent e) {
+  /// [by] 는 마지막 일격을 넣은 유닛의 도감 id. 유닛별 킬 수를 세는 데 쓴다.
+  void onEnemyKilled(EnemyComponent e, {String? by}) {
     if (e.dead && !enemies.contains(e)) {
       return;
     }
@@ -569,6 +572,9 @@ class LuckyDefenseGame extends FlameGame {
     );
 
     state.totalKills++;
+    if (by != null) {
+      state.killsByUnit.update(by, (v) => v + 1, ifAbsent: () => 1);
+    }
     if (e.isBoss) {
       final gold = (Balance.bossGold(e.wave) * state.goldMultiplier).round();
       final gems = Balance.bossGems(e.wave);

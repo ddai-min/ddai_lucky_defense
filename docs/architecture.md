@@ -21,7 +21,7 @@ lib/
 │  │  ├─ unit_catalog.dart         유닛 도감 + 소환 추첨
 │  │  └─ enemy_catalog.dart        몬스터 · 보스 도감
 │  └─ components/                  Flame 컴포넌트 (유닛/몬스터/투사체/이펙트/배경)
-└─ ui/                             HUD · 조작 패널 · 도감 시트 · 랭킹 시트 · 오버레이
+└─ ui/                             HUD · 조작 패널 · 도감 시트 · 랭킹 시트 · 처치 집계 · 오버레이
 
 firebase/
 └─ firestore.rules                 랭킹 보안 규칙 (실제로 위조를 막는 곳)

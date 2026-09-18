@@ -41,6 +41,7 @@ class EnemyComponent extends PositionComponent {
   double _slowTimer = 0;
   double _slowAmount = 0;
   double _poisonDps = 0;
+  String? _poisonBy;
   double _poisonTimer = 0;
   double _hitFlash = 0;
   double _phase = 0;
@@ -75,6 +76,7 @@ class EnemyComponent extends PositionComponent {
         _poisonDps * dt,
         color: const Color(0xFF8BE36B),
         showText: false,
+        by: _poisonBy,
       );
       if (dead) {
         return;
@@ -101,10 +103,12 @@ class EnemyComponent extends PositionComponent {
       ..y = p.y + t.x * offset;
   }
 
+  /// [by] 는 때린 유닛의 도감 id. 마지막 일격을 넣은 유닛에게 킬이 붙는다.
   void takeDamage(
     double amount, {
     Color color = Colors.white,
     bool showText = true,
+    String? by,
   }) {
     if (dead || amount <= 0) {
       return;
@@ -116,18 +120,18 @@ class EnemyComponent extends PositionComponent {
     }
     if (hp <= 0) {
       hp = 0;
-      game.onEnemyKilled(this);
+      game.onEnemyKilled(this, by: by);
     }
   }
 
   /// 즉사(처형). 보스에게는 적용되지 않는다.
-  void execute() {
+  void execute({String? by}) {
     if (dead || isBoss) {
       return;
     }
     hp = 0;
     game.spawnExecuteText(position);
-    game.onEnemyKilled(this);
+    game.onEnemyKilled(this, by: by);
   }
 
   void applySlow(double amount, double duration) {
@@ -141,11 +145,16 @@ class EnemyComponent extends PositionComponent {
     _slowTimer = math.max(_slowTimer, duration);
   }
 
-  void applyPoison(double dps, double duration) {
+  /// 중독은 시간이 지나 터지므로, 건 유닛을 기억해 뒀다가 킬을 돌려준다.
+  /// 더 센 중독이 덮어쓰면 출처도 같이 바뀐다.
+  void applyPoison(double dps, double duration, {String? by}) {
     if (dead) {
       return;
     }
-    _poisonDps = math.max(_poisonDps, dps);
+    if (dps >= _poisonDps) {
+      _poisonDps = dps;
+      _poisonBy = by;
+    }
     _poisonTimer = math.max(_poisonTimer, duration);
   }
 

@@ -62,6 +62,10 @@ class GameState extends ChangeNotifier {
   Rarity? highSummonRarity;
 
   int totalKills = 0;
+
+  /// 유닛 도감 id 별 처치 수. 마지막 일격을 넣은 유닛에게 붙는다.
+  /// 팔거나 합성해 사라진 유닛의 몫도 판이 끝날 때까지 남는다.
+  final Map<String, int> killsByUnit = {};
   int totalSummons = 0;
   int totalMerges = 0;
 
@@ -168,6 +172,7 @@ class GameState extends ChangeNotifier {
     highSummonEmoji = null;
     highSummonRarity = null;
     totalKills = 0;
+    killsByUnit.clear();
     totalSummons = 0;
     totalMerges = 0;
     failedMerges = 0;
