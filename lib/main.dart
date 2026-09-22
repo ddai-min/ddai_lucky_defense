@@ -119,6 +119,13 @@ class _GameScreenState extends State<GameScreen> {
           return false;
         }
         game.mergeOnce(specId: unit.spec.id);
+      case GameKey.mergeLock:
+        // 합성과 같다 — 고른 유닛에만 건다.
+        final target = game.selected;
+        if (target == null) {
+          return false;
+        }
+        game.toggleMergeLock(target.spec.id);
       case GameKey.attack:
         game.upgradeAttack();
       case GameKey.attackSpeed:

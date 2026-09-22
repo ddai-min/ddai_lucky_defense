@@ -11,6 +11,8 @@ import 'render_utils.dart';
 
 /// 슬롯에 배치되어 자동으로 공격하는 유닛.
 const _unitShadow = Color(0x59000000);
+const _lockFill = Color(0xF21A1F2E);
+const _lockRing = Color(0xFFFFD34E);
 const _badgeRing = Color(0xBFFFFFFF);
 
 class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
@@ -206,6 +208,7 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
     canvas.restore();
 
     _drawCountBadge(canvas, center, half);
+    _drawLockBadge(canvas, center, half);
 
     if (isMergeReady) {
       final glow = 0.5 + 0.5 * math.sin(_phase * 5);
@@ -224,6 +227,21 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
         ),
       );
     }
+  }
+
+  /// 자동 합성에서 빠져 있다는 표시. 보유 수 배지 반대쪽(왼쪽 위)에 둔다.
+  void _drawLockBadge(Canvas canvas, Offset center, double half) {
+    if (!game.state.mergeLocked.contains(spec.id)) {
+      return;
+    }
+    final c = center + Offset(-half * 0.82, -half * 0.82);
+    final r = half * 0.32;
+    canvas
+      ..drawCircle(c, r, fillPaint(_lockFill))
+      ..drawCircle(c, r, strokePaint(_lockRing, 1.5));
+    // 이모지는 글자보다 여백이 넓어, 숫자 배지와 같은 크기로 보이려면 더 키워야
+    // 한다. 작으면 «뭔가 붙어 있다» 로만 보이고 자물쇠인 줄 모른다.
+    drawTextCentered(canvas, '🔒', TextStyle(fontSize: r * 1.6), c);
   }
 
   void _drawCountBadge(Canvas canvas, Offset center, double half) {

@@ -972,6 +972,10 @@ class LuckyDefenseGame extends FlameGame {
   }
 
   /// 지금 합성할 수 있는 유닛. [certainOnly] 면 확정 합성만 고른다.
+  ///
+  /// 이 길은 자동 합성만 지난다(손으로 누를 때는 유닛을 콕 집어 넘긴다).
+  /// 그래서 합성 잠금은 여기서만 걸러 주면 된다 — 잠가 둬도 직접 누르는
+  /// 합성은 그대로 된다.
   String? _firstMergeableId({bool certainOnly = false}) {
     String? found;
     unitCounts.forEach((id, count) {
@@ -982,11 +986,30 @@ class LuckyDefenseGame extends FlameGame {
       if (spec != null &&
           spec.rarity.next != null &&
           count >= Balance.mergeCount &&
+          !state.mergeLocked.contains(id) &&
           (!certainOnly || mergeChanceOf(spec) >= 1)) {
         found = id;
       }
     });
     return found;
+  }
+
+  /// [specId] 종류를 자동 합성에서 빼거나 다시 넣는다.
+  void toggleMergeLock(String specId) {
+    final spec = kUnitById[specId];
+    if (spec == null) {
+      return;
+    }
+    final locked = !state.mergeLocked.remove(specId);
+    if (locked) {
+      state.mergeLocked.add(specId);
+    }
+    state.showToast(
+      locked ? '${spec.name} 합성 잠금' : '${spec.name} 잠금 해제',
+      color: locked ? 0xFFFFD34E : 0xFF8A94AC,
+    );
+    _hudDirty = true;
+    state.notify();
   }
 
   /// [spec] 3개를 합성했을 때의 성공 확률. 1 이면 확정이다.

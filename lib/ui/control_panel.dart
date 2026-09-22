@@ -4,6 +4,7 @@ import '../game/components/render_utils.dart';
 import '../game/components/unit_component.dart';
 import '../game/data/balance.dart';
 import '../game/data/rarity.dart';
+import '../game/data/unit_catalog.dart';
 import '../game/game_state.dart';
 import '../game/lucky_defense_game.dart';
 import 'codex_sheet.dart';
@@ -642,6 +643,24 @@ class _SelectionCard extends StatelessWidget {
     final chance = game.mergeChanceOf(spec);
     final gamble = chance < 1;
 
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          _card(spec, count, canMerge, chance, gamble, constraints.maxWidth),
+    );
+  }
+
+  Widget _card(
+    UnitSpec spec,
+    int count,
+    bool canMerge,
+    double chance,
+    bool gamble,
+    double width,
+  ) {
+    // 버튼 셋이 고정 폭이라, 좁은 화면에서는 남는 자리를 태그가 다 먹고
+    // 정작 이름이 사라진다. 어느 유닛을 골랐는지가 제일 중요하니 태그를 접는다.
+    final tight = width < 320;
+
     return Container(
       constraints: const BoxConstraints(minHeight: 54),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
@@ -672,10 +691,12 @@ class _SelectionCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 5),
-                    _Tag(text: spec.rarity.label, color: spec.rarity.color),
-                    const SizedBox(width: 4),
-                    _Tag(text: spec.style.label, color: spec.style.color),
+                    if (!tight) ...[
+                      const SizedBox(width: 5),
+                      _Tag(text: spec.rarity.label, color: spec.rarity.color),
+                      const SizedBox(width: 4),
+                      _Tag(text: spec.style.label, color: spec.style.color),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -695,6 +716,11 @@ class _SelectionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
+          _LockButton(
+            locked: game.state.mergeLocked.contains(spec.id),
+            onTap: () => game.toggleMergeLock(spec.id),
+          ),
+          const SizedBox(width: 5),
           _MiniButton(
             label: gamble ? '도박' : '합성',
             sub: gamble
@@ -740,6 +766,47 @@ class _Tag extends StatelessWidget {
           color: color,
           fontSize: 8.5,
           fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+/// 합성 잠금 토글. 아이콘만 있는 좁은 버튼이라 선택 카드가 덜 비좁다.
+class _LockButton extends StatelessWidget {
+  const _LockButton({required this.locked, required this.onTap});
+
+  final bool locked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = locked ? GameColors.gold : GameColors.sub;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: locked
+              ? color.withValues(alpha: 0.18)
+              : Colors.black.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: locked ? color : GameColors.border),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              locked ? '🔒' : '🔓',
+              style: const TextStyle(fontSize: 13, height: 1.1),
+            ),
+            if (hasPhysicalKeyboard) ...[
+              const SizedBox(height: 2),
+              KeyCap(GameKey.mergeLock, enabled: true),
+            ],
+          ],
         ),
       ),
     );

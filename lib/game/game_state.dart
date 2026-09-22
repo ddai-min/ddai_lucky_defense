@@ -29,6 +29,12 @@ class GameState extends ChangeNotifier {
 
   bool autoMerge = false;
 
+  /// 자동 합성에서 빼 둔 유닛 종류(도감 id).
+  ///
+  /// 종류 단위다 — 자동 합성이 «같은 유닛 3개» 를 묶어 올리므로, 한 기만
+  /// 지켜 봐야 소용이 없다. 손으로 누르는 합성은 그대로 된다.
+  final Set<String> mergeLocked = {};
+
   /// 자리가 없을 때 가장 낮은 등급을 자동으로 팔지 여부.
   bool autoSell = true;
 
@@ -157,6 +163,7 @@ class GameState extends ChangeNotifier {
     goldLevel = 0;
     luckLevel = 0;
     autoMerge = false;
+    mergeLocked.clear();
     autoSell = true;
     paused = false;
     speedMultiplier = 1;

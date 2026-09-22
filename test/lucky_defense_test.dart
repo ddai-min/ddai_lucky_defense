@@ -10,6 +10,7 @@ import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
 import 'package:ddai_lucky_defense/game/record_store.dart';
 import 'package:ddai_lucky_defense/main.dart';
 import 'package:ddai_lucky_defense/ui/hud_bar.dart';
+import 'package:ddai_lucky_defense/ui/control_panel.dart';
 import 'package:ddai_lucky_defense/ui/shortcuts.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart';
@@ -277,6 +278,155 @@ void main() {
 
     expect(game.paused, isTrue);
     expect(victim.isMounted, isFalse, reason: '제거가 처리된 뒤에 루프가 선다');
+  });
+
+  group('합성 잠금', () {
+    testWidgets('잠근 종류는 자동 합성이 건너뛴다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final slime = kUnitById['slime']!;
+      game.placeUnits(slime, Balance.mergeCount);
+      game.state.autoMerge = true;
+      game.toggleMergeLock(slime.id);
+      await tester.pump();
+
+      for (var i = 0; i < 60; i++) {
+        game.update(1 / 60);
+      }
+      expect(game.unitCounts[slime.id], Balance.mergeCount, reason: '그대로다');
+      expect(game.state.totalMerges, 0);
+
+      // 풀면 곧바로 자동으로 합쳐진다.
+      game.toggleMergeLock(slime.id);
+      await tester.pump();
+      game.update(1 / 60);
+      expect(game.unitCounts[slime.id] ?? 0, 0);
+      expect(game.state.totalMerges, 1);
+    });
+
+    testWidgets('잠가도 직접 누르는 합성은 된다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final slime = kUnitById['slime']!;
+      game.placeUnits(slime, Balance.mergeCount);
+      game.toggleMergeLock(slime.id);
+      game.focusUnit(game.units.first);
+      await tester.pump();
+
+      await tester.sendKeyEvent(GameKey.merge.key);
+      await tester.pump();
+
+      expect(game.state.totalMerges, 1, reason: '잠금은 «자동» 합성만 막는다');
+      expect(game.units.first.spec.rarity, slime.rarity.next);
+    });
+
+    testWidgets('V 로 고른 유닛을 잠그고 푼다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final slime = kUnitById['slime']!;
+      game.placeUnits(slime, 1);
+      game.focusUnit(game.units.first);
+      await tester.pump();
+
+      await tester.sendKeyEvent(GameKey.mergeLock.key);
+      await tester.pump();
+      expect(game.state.mergeLocked, contains(slime.id));
+
+      await tester.sendKeyEvent(GameKey.mergeLock.key);
+      await tester.pump();
+      expect(game.state.mergeLocked, isEmpty);
+    });
+
+    testWidgets('아무것도 안 골랐으면 V 는 아무 일도 안 한다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      game.placeUnits(kUnitById['slime']!, 1);
+      game.clearSelection();
+      await tester.pump();
+
+      await tester.sendKeyEvent(GameKey.mergeLock.key);
+      await tester.pump();
+
+      expect(game.state.mergeLocked, isEmpty);
+    });
+
+    testWidgets('선택 카드의 자물쇠 버튼으로도 걸고 푼다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final slime = kUnitById['slime']!;
+      game.placeUnits(slime, 1);
+      game.focusUnit(game.units.first);
+      await tester.pump();
+
+      expect(find.text('🔓'), findsOneWidget);
+      await tester.tap(find.text('🔓'));
+      await tester.pump();
+
+      expect(game.state.mergeLocked, contains(slime.id));
+      expect(find.text('🔒'), findsOneWidget);
+      expect(find.text('🔓'), findsNothing);
+
+      await tester.tap(find.text('🔒'));
+      await tester.pump();
+      expect(game.state.mergeLocked, isEmpty);
+    });
+
+    testWidgets('좁은 화면에서도 고른 유닛 이름이 보인다', (tester) async {
+      // 버튼이 셋(잠금·합성·판매)이라 320pt 에서는 자리가 빠듯하다. 태그가
+      // 밀려나더라도 «무엇을 골랐나» 는 남아야 한다.
+      tester.view
+        ..physicalSize = const Size(640, 1136) // 320x568
+        ..devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      late LuckyDefenseGame game;
+      await tester.pumpWidget(
+        LuckyDefenseApp(
+          gameFactory: () {
+            game = LuckyDefenseGame(
+              state: GameState(),
+              random: math.Random(3),
+              records: MemoryRecordStore(),
+              leaderboard: MemoryLeaderboard(isAvailable: false),
+            );
+            return game;
+          },
+        ),
+      );
+      await tester.pump();
+      game.startGame();
+      final spec = kUnitById['slime']!;
+      game.placeUnits(spec, 1);
+      game.focusUnit(game.units.first);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('🔓'), findsOneWidget, reason: '잠금 버튼은 남는다');
+
+      // 트리에 있는 것만으로는 부족하다 — 자리를 못 받으면 폭 0 으로 그려진다.
+      final name = find.descendant(
+        of: find.byType(ControlPanel),
+        matching: find.text(spec.name),
+      );
+      expect(name, findsOneWidget);
+      expect(
+        tester.getSize(name).width,
+        greaterThan(24),
+        reason: '이름이 읽을 수 있을 만큼은 나와야 한다',
+      );
+    });
+
+    testWidgets('다시 시작하면 잠금이 풀린다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      game.placeUnits(kUnitById['slime']!, 1);
+      game.toggleMergeLock('slime');
+      expect(game.state.mergeLocked, isNotEmpty);
+
+      game.restart();
+      await tester.pump();
+      expect(game.state.mergeLocked, isEmpty);
+    });
   });
 
   group('일시정지 화면', () {

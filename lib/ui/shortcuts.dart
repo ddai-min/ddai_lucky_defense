@@ -10,6 +10,7 @@ enum GameKey {
   summon('D', LogicalKeyboardKey.keyD),
   highSummon('F', LogicalKeyboardKey.keyF),
   merge('C', LogicalKeyboardKey.keyC),
+  mergeLock('V', LogicalKeyboardKey.keyV),
   attack('Q', LogicalKeyboardKey.keyQ),
   attackSpeed('W', LogicalKeyboardKey.keyW),
   goldGain('E', LogicalKeyboardKey.keyE),
