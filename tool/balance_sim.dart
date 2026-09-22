@@ -68,7 +68,7 @@ class SimConfig {
     this.slots = kSlots,
     this.lives,
     this.waveInterval = Balance.waveInterval,
-    this.bossHpMultiplier = Balance.bossHpMultiplier,
+    this.bossHpMultiplier,
     this.startLuck = 0,
     this.mergeAnyOfRarity = false,
     this.luckCap = Balance.luckMaxLevel,
@@ -94,7 +94,11 @@ class SimConfig {
 
   int get livesAt => lives ?? Balance.startLivesOf(mode);
   final double waveInterval;
-  final double bossHpMultiplier;
+  /// 보스 체력 배수. 안 넘기면 모드·웨이브에 따른 실제 값을 쓴다.
+  final double? bossHpMultiplier;
+
+  double bossHpAt(int wave) =>
+      bossHpMultiplier ?? Balance.bossHpAt(wave, mode);
   final int startLuck;
 
   /// 참이면 «같은 등급 아무 3개» 로 합성한다(현재 규칙은 같은 유닛 3개).
@@ -263,7 +267,7 @@ RunResult runOnce(int seed, SimConfig c, {int maxWave = 80}) {
     final hp =
         c.hpAt(w) *
         (isBoss
-            ? c.bossHpMultiplier
+            ? c.bossHpAt(w)
             : (isRush ? Balance.rushHpMultiplier : 1.0));
     final count = isBoss
         ? 1

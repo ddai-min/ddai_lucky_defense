@@ -507,11 +507,14 @@ void main() {
 
   group('지옥: 마지막 관문', () {
     /// 관문 직전까지 밀어 둔 판.
-    Future<LuckyDefenseGame> atFinaleEdge(WidgetTester tester) async {
+    Future<LuckyDefenseGame> atFinaleEdge(
+      WidgetTester tester, {
+      int units = 8,
+    }) async {
       final game = await _boot(tester);
       game.state.mode = GameMode.hell;
       game.startGame();
-      game.placeUnits(kUnitById['slime']!, 8);
+      game.placeUnits(kUnitById['slime']!, units);
       game.state
         ..wave = Balance.hellFinaleFrom - 1
         ..lives = 1 << 20
@@ -520,8 +523,16 @@ void main() {
       return game;
     }
 
-    test('148·149·150 은 전부 보스 웨이브다', () {
-      for (final w in [148, 149, 150]) {
+    /// 관문에 드는 웨이브들.
+    List<int> finaleWaves() => [
+      for (var w = Balance.hellFinaleFrom;
+          w <= Balance.clearWave(GameMode.hell)!;
+          w++)
+        w,
+    ];
+
+    test('관문 구간은 전부 보스 웨이브다', () {
+      for (final w in finaleWaves()) {
         expect(Balance.isBossWave(w, GameMode.hell), isTrue, reason: '$w');
         expect(
           Balance.isBossWave(w, GameMode.hard),
@@ -529,8 +540,13 @@ void main() {
           reason: '어려움은 평소 규칙 그대로여야 한다 ($w)',
         );
       }
-      // 관문 전은 평소대로다.
-      expect(Balance.isBossWave(147, GameMode.hell), isFalse);
+      // 관문 직전은 평소대로다.
+      final before = Balance.hellFinaleFrom - 1;
+      expect(
+        Balance.isBossWave(before, GameMode.hell),
+        before % Balance.bossEvery == 0,
+        reason: '$before 는 평소 규칙',
+      );
       expect(Balance.isBossWave(140, GameMode.hell), isTrue, reason: '10의 배수');
     });
 
@@ -541,7 +557,7 @@ void main() {
       }
     });
 
-    testWidgets('148 에 들어서면 소환이 봉인된다', (tester) async {
+    testWidgets('관문 첫 웨이브에 들어서면 소환이 봉인된다', (tester) async {
       final game = await atFinaleEdge(tester);
       expect(game.state.summonSealed, isFalse);
 
@@ -574,23 +590,36 @@ void main() {
       expect(game.units.length, before);
     });
 
-    testWidgets('관문 세 웨이브마다 유닛이 2기씩, 모두 6기 부서진다', (tester) async {
-      final game = await atFinaleEdge(tester);
+    testWidgets('관문 웨이브마다 정해진 수만큼 부서진다', (tester) async {
+      final waves = finaleWaves();
+      final game = await atFinaleEdge(tester, units: waves.length * 2 + 6);
       final start = game.units.length;
 
       var expected = start;
-      for (final wave in [148, 149, 150]) {
+      for (final wave in waves) {
         // 웨이브 진입 → 메테오가 떨어질 때까지 돌린다.
         game.state.waveCountdown = 0.01;
         for (var i = 0; i < 60 * 3; i++) {
           game.update(1 / 60);
         }
         await tester.pump();
-        expected -= Balance.hellMeteorKills;
+        expected -= Balance.hellMeteorKillsAt(wave);
         expect(game.state.wave, greaterThanOrEqualTo(wave));
         expect(game.units.length, expected, reason: '$wave 웨이브 뒤');
       }
-      expect(start - game.units.length, 6, reason: '모두 6기');
+      final total = waves.fold<int>(
+        0,
+        (sum, w) => sum + Balance.hellMeteorKillsAt(w),
+      );
+      expect(start - game.units.length, total);
+    });
+
+    test('앞 두 웨이브는 1기, 그 뒤로는 2기를 부순다', () {
+      expect(Balance.hellMeteorKillsAt(146), 1);
+      expect(Balance.hellMeteorKillsAt(147), 1);
+      for (final w in [148, 149, 150]) {
+        expect(Balance.hellMeteorKillsAt(w), 2, reason: '$w');
+      }
     });
 
     testWidgets('부술 유닛이 모자라면 있는 만큼만 부순다', (tester) async {

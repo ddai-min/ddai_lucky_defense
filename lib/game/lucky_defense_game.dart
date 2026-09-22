@@ -339,7 +339,7 @@ class LuckyDefenseGame extends FlameGame {
     if (isBoss) {
       final kind = bossForWave(w);
       _spawnKind = kind;
-      _spawnHp = _hpAt(w) * Balance.bossHpMultiplier;
+      _spawnHp = _hpAt(w) * Balance.bossHpAt(w, state.mode);
       _spawnLap = Balance.lapSeconds(w) * Balance.bossLapMultiplier;
       _spawnIsBoss = true;
       _pendingSpawns = 1;
@@ -394,7 +394,7 @@ class LuckyDefenseGame extends FlameGame {
         ),
       );
     }
-    _dropMeteors(Balance.hellMeteorKills);
+    _dropMeteors(Balance.hellMeteorKillsAt(wave));
   }
 
   void _dropMeteors(int count) {
@@ -1072,7 +1072,7 @@ class LuckyDefenseGame extends FlameGame {
   @visibleForTesting
   EnemyComponent spawnFinalBossForTest() {
     _spawnKind = bossForWave(state.wave);
-    _spawnHp = _hpAt(state.wave) * Balance.bossHpMultiplier;
+    _spawnHp = _hpAt(state.wave) * Balance.bossHpAt(state.wave, state.mode);
     _spawnLap = Balance.lapSeconds(state.wave) * Balance.bossLapMultiplier;
     _spawnIsBoss = true;
     _spawnEnemy();

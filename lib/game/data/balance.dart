@@ -112,8 +112,18 @@ class Balance {
   /// 버튼이었다.
   static int summonCost(int unitCount) => 20 + 39 * unitCount;
 
-  static const int hellFinaleFrom = 148;
-  static const int hellMeteorKills = 2;
+  static const int hellFinaleFrom = 146;
+  static const int hellMeteorHeavyFrom = 148;
+
+  static int hellMeteorKillsAt(int wave) =>
+      wave >= hellMeteorHeavyFrom ? 2 : 1;
+  static const double hellFinaleBossGrowth = 1.0395;
+
+  static double bossHpAt(int wave, GameMode mode) =>
+      bossHpMultiplier *
+      (mode.hasFinale && wave >= hellFinaleFrom
+          ? math.pow(hellFinaleBossGrowth, wave - hellFinaleFrom).toDouble()
+          : 1);
 
   static bool isBossWave(int wave, GameMode mode) =>
       wave % bossEvery == 0 || (mode.hasFinale && wave >= hellFinaleFrom);
