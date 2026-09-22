@@ -5,6 +5,7 @@ import 'package:ddai_lucky_defense/game/data/rarity.dart';
 import 'package:ddai_lucky_defense/game/data/unit_catalog.dart';
 import 'package:ddai_lucky_defense/game/field_layout.dart';
 import 'package:ddai_lucky_defense/game/components/enemy_component.dart';
+import 'package:ddai_lucky_defense/game/app_check.dart';
 import 'package:ddai_lucky_defense/game/game_state.dart';
 import 'package:ddai_lucky_defense/game/leaderboard.dart';
 import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
@@ -19,6 +20,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 화살표 아이콘을 감싼 가장 가까운 AnimatedOpacity 의 불투명도.
@@ -398,6 +401,64 @@ void main() {
       expect(find.textContaining('어려움에서는'), findsOneWidget);
       expect(find.textContaining('도박입니다'), findsOneWidget);
       expect(find.textContaining('남은 것은 주사위뿐'), findsNothing);
+    });
+  });
+
+  group('App Check', () {
+    test('설정이 비어 있으면 꺼진 채로 동작한다', () {
+      // 설정 전 빌드가 갑자기 랭킹을 못 쓰게 되면 안 된다.
+      expect(AppCheck(projectId: '', appId: '', siteKey: '').isConfigured,
+          isFalse);
+      expect(
+        AppCheck(projectId: 'p', appId: 'a', siteKey: '').isConfigured,
+        isFalse,
+        reason: '사이트 키가 없으면 토큰을 만들 수 없다',
+      );
+    });
+
+    test('토큰을 못 받아도 null 을 돌려줄 뿐 던지지 않는다', () async {
+      final check = AppCheck(projectId: 'p', appId: 'a', siteKey: 's');
+      expect(await check.token(), isNull);
+    });
+
+    testWidgets('등록 요청에 토큰이 실린다', (tester) async {
+      final sent = <http.Request>[];
+      final client = MockClient((request) async {
+        sent.add(request);
+        return http.Response('{}', 200);
+      });
+      final board = FirestoreLeaderboard(
+        client: client,
+        projectId: 'p',
+        apiKey: 'k',
+        appCheck: _StubAppCheck('토큰값'),
+      );
+
+      final ok = await board.submit(
+        GameMode.hard,
+        const RankEntry(name: '나', wave: 10),
+      );
+
+      expect(ok, isTrue);
+      expect(sent.single.headers['X-Firebase-AppCheck'], '토큰값');
+    });
+
+    testWidgets('토큰이 없으면 헤더 없이 보낸다', (tester) async {
+      final sent = <http.Request>[];
+      final client = MockClient((request) async {
+        sent.add(request);
+        return http.Response('{}', 200);
+      });
+      final board = FirestoreLeaderboard(
+        client: client,
+        projectId: 'p',
+        apiKey: 'k',
+        appCheck: _StubAppCheck(null),
+      );
+
+      await board.submit(GameMode.hard, const RankEntry(name: '나', wave: 10));
+
+      expect(sent.single.headers.containsKey('X-Firebase-AppCheck'), isFalse);
     });
   });
 
@@ -2204,4 +2265,20 @@ void main() {
     expect(find.textContaining('도박'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+/// 토큰을 정해진 값으로 돌려주는 App Check. 실제 reCAPTCHA 를 태울 수 없다.
+class _StubAppCheck implements AppCheck {
+  _StubAppCheck(this._token);
+
+  final String? _token;
+
+  @override
+  bool get isConfigured => _token != null;
+
+  @override
+  Future<String?> token() async => _token;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
