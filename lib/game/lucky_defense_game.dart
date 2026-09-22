@@ -326,8 +326,10 @@ class LuckyDefenseGame extends FlameGame {
     state.waveCountdown = Balance.waveInterval;
 
     final w = state.wave;
-    final isBoss = w % Balance.bossEvery == 0;
+    final isBoss = Balance.isBossWave(w, state.mode);
     final isRush = !isBoss && w % Balance.rushEvery == 0;
+
+    _enterFinaleIfNeeded(w);
 
     final income = (Balance.clearGold(w) * state.goldMultiplier).round();
     state.gold += income;
@@ -374,6 +376,62 @@ class LuckyDefenseGame extends FlameGame {
     }
     _spawnTimer = 0;
     _hudDirty = true;
+  }
+
+  void _enterFinaleIfNeeded(int wave) {
+    if (!Balance.isSummonSealed(wave, state.mode)) {
+      return;
+    }
+    if (!state.summonSealed) {
+      state.summonSealed = true;
+      state.showToast('소환이 봉인되었습니다', color: 0xFFFF5C6E);
+      fieldRoot.add(
+        WaveBanner(
+          '🔒 소환 봉인',
+          '남은 유닛으로 버티십시오',
+          const Color(0xFFFF5C6E),
+          Vector2(layout.size.x / 2, layout.size.y * 0.28),
+        ),
+      );
+    }
+    _dropMeteors(Balance.hellMeteorKills);
+  }
+
+  void _dropMeteors(int count) {
+    final targets = [...units]..shuffle(rng);
+    final victims = targets.take(count).toList();
+    if (victims.isEmpty) {
+      return;
+    }
+    for (var i = 0; i < victims.length; i++) {
+      final victim = victims[i];
+      final at = victim.position.clone();
+      fieldRoot.add(
+        MeteorEffect(
+          at,
+          band: layout.bandHeight,
+          delay: i * 0.22,
+          onImpact: () {
+            shake(0.55);
+            fieldRoot.add(
+              BurstEffect(
+                at,
+                const Color(0xFFFF6B3D),
+                count: 16,
+                speed: layout.bandHeight * 2.0,
+                size: layout.bandHeight * 0.06,
+              ),
+            );
+            if (!units.contains(victim)) {
+              return;
+            }
+            _destroyUnit(victim);
+            _recount();
+            _hudDirty = true;
+          },
+        ),
+      );
+    }
   }
 
   double _hpAt(int wave) => Balance.enemyHp(wave, state.mode);
@@ -918,6 +976,10 @@ class LuckyDefenseGame extends FlameGame {
     if (state.isFinished) {
       return false;
     }
+    if (state.summonSealed) {
+      state.showToast('소환이 봉인되었습니다', color: 0xFFFF5C6E);
+      return false;
+    }
 
     var slot = _firstFreeSlot();
     UnitComponent? sacrifice;
@@ -959,6 +1021,10 @@ class LuckyDefenseGame extends FlameGame {
     if (state.isFinished) {
       return false;
     }
+    if (state.summonSealed) {
+      state.showToast('소환이 봉인되었습니다', color: 0xFFFF5C6E);
+      return false;
+    }
     if (state.gems < Balance.highSummonGems) {
       state.showToast('다이아가 부족합니다', color: 0xFFFF5C6E);
       return false;
@@ -991,6 +1057,16 @@ class LuckyDefenseGame extends FlameGame {
   ///
   /// 소환은 무작위라 신화 같은 고등급을 손에 넣으려면 합성을 몇 겹씩 거쳐야
   /// 한다. 합성 규칙 자체를 검증하려면 보드를 직접 꾸밀 수 있어야 한다.
+  @visibleForTesting
+  void jumpToFinaleForTest() {
+    state
+      ..wave = Balance.hellFinaleFrom - 1
+      ..lives = 1 << 20
+      ..waveCountdown = 1.0;
+    _hudDirty = true;
+    state.notify();
+  }
+
   /// 마지막 웨이브 보스 한 기를 즉시 세운다. 테스트에서 «보스를 잡았나 놓쳤나»
   /// 를 확인하려면 150웨이브까지 실제로 진행시킬 수 없다.
   @visibleForTesting

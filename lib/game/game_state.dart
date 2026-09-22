@@ -29,6 +29,8 @@ class GameState extends ChangeNotifier {
 
   bool autoMerge = false;
 
+  bool summonSealed = false;
+
   /// 자동 합성에서 빼 둔 유닛 종류(도감 id).
   ///
   /// 종류 단위다 — 자동 합성이 «같은 유닛 3개» 를 묶어 올리므로, 한 기만
@@ -129,7 +131,7 @@ class GameState extends ChangeNotifier {
       willAutoSell ? Balance.summonCost(unitCount - 1) : summonCost;
 
   bool get canSummon {
-    if (isFinished) {
+    if (isFinished || summonSealed) {
       return false;
     }
     if (!slotsFull) {
@@ -142,6 +144,7 @@ class GameState extends ChangeNotifier {
   bool get canHighSummon =>
       gems >= Balance.highSummonGems &&
       !isFinished &&
+      !summonSealed &&
       (!slotsFull || willAutoSell);
 
   int get atkCost => Balance.atkUpgradeCost(atkLevel);
@@ -169,6 +172,7 @@ class GameState extends ChangeNotifier {
     goldLevel = 0;
     luckLevel = 0;
     autoMerge = false;
+    summonSealed = false;
     mergeLocked.clear();
     autoSell = true;
     paused = false;

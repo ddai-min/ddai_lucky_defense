@@ -500,6 +500,148 @@ void main() {
     });
   });
 
+  group('지옥: 마지막 관문', () {
+    /// 관문 직전까지 밀어 둔 판.
+    Future<LuckyDefenseGame> atFinaleEdge(WidgetTester tester) async {
+      final game = await _boot(tester);
+      game.state.mode = GameMode.hell;
+      game.startGame();
+      game.placeUnits(kUnitById['slime']!, 8);
+      game.state
+        ..wave = Balance.hellFinaleFrom - 1
+        ..lives = 1 << 20
+        ..waveCountdown = 0.01;
+      await tester.pump();
+      return game;
+    }
+
+    test('148·149·150 은 전부 보스 웨이브다', () {
+      for (final w in [148, 149, 150]) {
+        expect(Balance.isBossWave(w, GameMode.hell), isTrue, reason: '$w');
+        expect(
+          Balance.isBossWave(w, GameMode.hard),
+          w % Balance.bossEvery == 0,
+          reason: '어려움은 평소 규칙 그대로여야 한다 ($w)',
+        );
+      }
+      // 관문 전은 평소대로다.
+      expect(Balance.isBossWave(147, GameMode.hell), isFalse);
+      expect(Balance.isBossWave(140, GameMode.hell), isTrue, reason: '10의 배수');
+    });
+
+    test('관문이 있는 모드는 지옥뿐이다', () {
+      expect(GameMode.values.where((m) => m.hasFinale), [GameMode.hell]);
+      for (final w in [148, 149, 150]) {
+        expect(Balance.isSummonSealed(w, GameMode.hard), isFalse);
+      }
+    });
+
+    testWidgets('148 에 들어서면 소환이 봉인된다', (tester) async {
+      final game = await atFinaleEdge(tester);
+      expect(game.state.summonSealed, isFalse);
+
+      game.update(1 / 60);
+      await tester.pump();
+
+      expect(game.state.wave, Balance.hellFinaleFrom);
+      expect(game.state.summonSealed, isTrue);
+      expect(game.state.canSummon, isFalse);
+      expect(game.state.canHighSummon, isFalse);
+    });
+
+    testWidgets('봉인 뒤에는 골드·다이아가 넉넉해도 못 뽑는다', (tester) async {
+      final game = await atFinaleEdge(tester);
+      game.update(1 / 60);
+      await tester.pump();
+      game.state
+        ..gold = 1 << 24
+        ..gems = 1 << 16;
+
+      final before = game.units.length;
+      expect(game.summon(), isFalse);
+      expect(game.highSummon(), isFalse);
+      expect(game.units.length, before);
+
+      // 단축키로도 막힌다.
+      await tester.sendKeyEvent(GameKey.summon.key);
+      await tester.sendKeyEvent(GameKey.highSummon.key);
+      await tester.pump();
+      expect(game.units.length, before);
+    });
+
+    testWidgets('관문 세 웨이브마다 유닛이 2기씩, 모두 6기 부서진다', (tester) async {
+      final game = await atFinaleEdge(tester);
+      final start = game.units.length;
+
+      var expected = start;
+      for (final wave in [148, 149, 150]) {
+        // 웨이브 진입 → 메테오가 떨어질 때까지 돌린다.
+        game.state.waveCountdown = 0.01;
+        for (var i = 0; i < 60 * 3; i++) {
+          game.update(1 / 60);
+        }
+        await tester.pump();
+        expected -= Balance.hellMeteorKills;
+        expect(game.state.wave, greaterThanOrEqualTo(wave));
+        expect(game.units.length, expected, reason: '$wave 웨이브 뒤');
+      }
+      expect(start - game.units.length, 6, reason: '모두 6기');
+    });
+
+    testWidgets('부술 유닛이 모자라면 있는 만큼만 부순다', (tester) async {
+      final game = await _boot(tester);
+      game.state.mode = GameMode.hell;
+      game.startGame();
+      game.placeUnits(kUnitById['slime']!, 1);
+      game.state
+        ..wave = Balance.hellFinaleFrom - 1
+        ..lives = 1 << 20
+        ..waveCountdown = 0.01;
+      await tester.pump();
+
+      for (var i = 0; i < 60 * 3; i++) {
+        game.update(1 / 60);
+      }
+      await tester.pump();
+
+      expect(game.units, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('다시 시작하면 봉인이 풀린다', (tester) async {
+      final game = await atFinaleEdge(tester);
+      game.update(1 / 60);
+      await tester.pump();
+      expect(game.state.summonSealed, isTrue);
+
+      game.restart();
+      await tester.pump();
+      expect(game.state.summonSealed, isFalse);
+      expect(game.state.canSummon, isTrue);
+    });
+
+    testWidgets('어려움에는 관문이 없다', (tester) async {
+      final game = await _boot(tester);
+      game.state.mode = GameMode.hard;
+      game.startGame();
+      game.placeUnits(kUnitById['slime']!, 6);
+      game.state
+        ..wave = Balance.hellFinaleFrom - 1
+        ..lives = 1 << 20
+        ..waveCountdown = 0.01;
+      await tester.pump();
+
+      final before = game.units.length;
+      for (var i = 0; i < 60 * 3; i++) {
+        game.update(1 / 60);
+      }
+      await tester.pump();
+
+      expect(game.state.summonSealed, isFalse);
+      expect(game.units.length, before, reason: '메테오가 떨어지지 않는다');
+    });
+  });
+
   group('마지막 보스 격퇴', () {
     /// 마지막 웨이브에 보스 한 기만 살아 있는 판을 만든다.
     ///

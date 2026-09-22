@@ -126,10 +126,12 @@ class _ActionRow extends StatelessWidget {
         Expanded(
           flex: 5,
           child: ActionButton(
-            icon: state.willAutoSell ? '♻️' : '🎲',
+            icon: state.summonSealed ? null : (state.willAutoSell ? '♻️' : '🎲'),
             label: '소환',
-            sub: '${formatNumber(state.effectiveSummonCost)} G',
-            color: GameColors.gold,
+            sub: state.summonSealed
+                ? '🔒 봉인'
+                : '${formatNumber(state.effectiveSummonCost)} G',
+            color: state.summonSealed ? GameColors.life : GameColors.gold,
             filled: true,
             enabled: state.canSummon,
             shortcut: GameKey.summon,
@@ -146,10 +148,14 @@ class _ActionRow extends StatelessWidget {
           // 이름도 안 보인다. 그래서 겨냥한 대상이 있으면 이름을 라벨 자리에
           // 그대로 세우고, 정체는 이모지·등급색·💎 값으로 알린다.
           child: ActionButton(
-            icon: state.highSummonEmoji,
-            label: state.highSummonName ?? '고급소환',
-            sub: '${Balance.highSummonGems} 💎',
-            color: state.highSummonRarity?.color ?? GameColors.gem,
+            icon: state.summonSealed ? null : state.highSummonEmoji,
+            label: state.summonSealed
+                ? '고급소환'
+                : (state.highSummonName ?? '고급소환'),
+            sub: state.summonSealed ? '🔒 봉인' : '${Balance.highSummonGems} 💎',
+            color: state.summonSealed
+                ? GameColors.life
+                : (state.highSummonRarity?.color ?? GameColors.gem),
             enabled: state.canHighSummon,
             shortcut: GameKey.highSummon,
             onTap: game.highSummon,

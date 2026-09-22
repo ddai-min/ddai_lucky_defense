@@ -105,6 +105,15 @@ class Balance {
   /// 버튼이었다.
   static int summonCost(int unitCount) => 20 + 39 * unitCount;
 
+  static const int hellFinaleFrom = 148;
+  static const int hellMeteorKills = 2;
+
+  static bool isBossWave(int wave, GameMode mode) =>
+      wave % bossEvery == 0 || (mode.hasFinale && wave >= hellFinaleFrom);
+
+  static bool isSummonSealed(int wave, GameMode mode) =>
+      mode.hasFinale && wave >= hellFinaleFrom;
+
   // ───────────────────────── 웨이브 ─────────────────────────
   static const double firstWaveDelay = 10;
   static const double waveInterval = 22;

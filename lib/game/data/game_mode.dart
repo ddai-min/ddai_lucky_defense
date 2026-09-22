@@ -37,6 +37,8 @@ enum GameMode {
   /// 흘린다» 는 규칙이 다이아로 지워진다.
   bool get canBuyLife => this != GameMode.hell;
 
+  bool get hasFinale => this == GameMode.hell;
+
   /// 마지막 보스를 «잡아야» 클리어인지.
   ///
   /// 어려움·지옥만 그렇다. 이 규칙이 없으면 마지막 보스를 성까지 흘려보내도

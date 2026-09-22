@@ -305,6 +305,88 @@ class SummonFlash extends PositionComponent {
 }
 
 /// 웨이브/보스 등장 배너.
+class MeteorEffect extends PositionComponent {
+  MeteorEffect(
+    this.impact, {
+    required this.onImpact,
+    required this.band,
+    this.delay = 0,
+  }) : super(priority: kFxPriority + 3);
+
+  /// 떨어질 자리.
+  final Vector2 impact;
+
+  /// 닿는 순간 한 번 불린다.
+  final VoidCallback onImpact;
+
+  /// 화면 크기에 맞춘 기준 길이(레인 간격).
+  final double band;
+
+  final double delay;
+
+  static const _fallTime = 0.55;
+
+  double _t = 0;
+  bool _hit = false;
+
+  late final Vector2 _from = impact + Vector2(-band * 2.2, -band * 9);
+
+  @override
+  void update(double dt) {
+    _t += dt;
+    final p = ((_t - delay) / _fallTime).clamp(0.0, 1.0);
+    position
+      ..setFrom(_from)
+      ..lerp(impact, p);
+    if (p >= 1 && !_hit) {
+      _hit = true;
+      onImpact();
+    }
+    // 터진 뒤 잔광이 사라질 때까지 조금 더 남는다.
+    if (_t - delay > _fallTime + 0.45) {
+      removeFromParent();
+    }
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final p = ((_t - delay) / _fallTime).clamp(0.0, 1.0);
+    if (p <= 0) {
+      return;
+    }
+    if (!_hit) {
+      // 꼬리 — 뒤로 길게 늘어진 불꽃.
+      for (var i = 0; i < 6; i++) {
+        final back = i * band * 0.34;
+        final a = (1 - i / 6) * 0.75;
+        canvas.drawCircle(
+          Offset(back * 0.24, -back),
+          band * 0.2 * (1 - i / 8),
+          fillPaint(fadeColor(const Color(0xFFFFA24D), a)),
+        );
+      }
+      canvas
+        ..drawCircle(
+          Offset.zero,
+          band * 0.32,
+          blurPaint(const Color(0xFFFF6B3D), 8),
+        )
+        ..drawCircle(Offset.zero, band * 0.2, fillPaint(_meteorCore));
+      return;
+    }
+    // 충격파.
+    final k = ((_t - delay - _fallTime) / 0.45).clamp(0.0, 1.0);
+    final r = band * (0.4 + k * 1.9);
+    canvas.drawCircle(
+      Offset.zero,
+      r,
+      strokePaint(fadeColor(const Color(0xFFFF6B3D), 1 - k), band * 0.16 * (1 - k)),
+    );
+  }
+}
+
+const _meteorCore = Color(0xFFFFE2B0);
+
 const _bannerRect = Rect.fromLTWH(-260, -26, 520, 52);
 
 class WaveBanner extends PositionComponent {
