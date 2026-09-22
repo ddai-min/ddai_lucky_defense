@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'app_check.dart';
 import 'data/game_mode.dart';
 
 /// 랭킹 한 줄.
@@ -100,15 +99,10 @@ abstract class Leaderboard {
 /// 브라우저에서 아무 값이나 POST 할 수 있다. 값의 범위·이름 길이·필드 구성은
 /// `firebase/firestore.rules` 가 검사한다([docs/leaderboard.md] 참고).
 class FirestoreLeaderboard implements Leaderboard {
-  FirestoreLeaderboard({
-    http.Client? client,
-    String? projectId,
-    String? apiKey,
-    AppCheck? appCheck,
-  }) : _client = client ?? http.Client(),
-       _projectId = projectId ?? _envProjectId,
-       _apiKey = apiKey ?? _envApiKey,
-       _appCheck = appCheck ?? AppCheck();
+  FirestoreLeaderboard({http.Client? client, String? projectId, String? apiKey})
+    : _client = client ?? http.Client(),
+      _projectId = projectId ?? _envProjectId,
+      _apiKey = apiKey ?? _envApiKey;
 
   static const String _envProjectId = String.fromEnvironment(
     'FIREBASE_PROJECT_ID',
@@ -118,9 +112,6 @@ class FirestoreLeaderboard implements Leaderboard {
   final http.Client _client;
   final String _projectId;
   final String _apiKey;
-
-  /// «이 사이트에서 온 진짜 앱» 임을 증명하는 토큰을 만든다([AppCheck]).
-  final AppCheck _appCheck;
 
   @override
   bool get isAvailable => _projectId.isNotEmpty && _apiKey.isNotEmpty;
@@ -200,17 +191,9 @@ class FirestoreLeaderboard implements Leaderboard {
       return false;
     }
     try {
-      // 읽기는 그냥 두고 «쓰기» 에만 붙인다. 토큰을 못 받아도 그대로 보낸다 —
-      // 거절 여부는 서버가 정하고, 여기서 미리 막으면 App Check 를 아직 켜지
-      // 않은 환경에서 랭킹이 통째로 죽는다.
-      final appCheckToken = await _appCheck.token();
-      final headers = {'Content-Type': 'application/json'};
-      if (appCheckToken != null) {
-        headers['X-Firebase-AppCheck'] = appCheckToken;
-      }
       final response = await _client.post(
         Uri.parse('$_base/${collectionOf(mode)}?key=$_apiKey'),
-        headers: headers,
+        headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({
           'fields': {
             'name': {'stringValue': entry.name},
