@@ -192,9 +192,10 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 도박이 붙는 모드는 «조심하라» 는 뜻으로 빨강을 쓴다.
     final color = switch (mode) {
       GameMode.endless => GameColors.accent,
-      GameMode.hard => GameColors.life,
+      GameMode.hard || GameMode.hell => GameColors.life,
       _ => GameColors.green,
     };
     return GestureDetector(
@@ -281,8 +282,8 @@ class _GambleNote extends StatelessWidget {
       ),
       child: Text(
         mode == GameMode.hell
-            ? '${mode.icon} 여기서 실력은 아무것도 아닙니다. '
-                  '남은 것은 주사위뿐. 운이 등을 돌리는 순간 문은 닫힙니다.'
+            ? '${mode.icon} 주사위는 던져졌습니다. 자비를 구할 곳도, '
+                  '되돌릴 수도 없습니다. 운이 다하는 곳이 끝입니다.'
             : '${mode.icon} ${mode.label}에서는 신화 3개를 초월로 올리는 합성이 '
                   '$chance% 도박입니다. 실패하면 ${Balance.mergeFailLoss}기가 '
                   '사라지고, 성공하면 공격력이 $bonus배인 초월이 나옵니다.',

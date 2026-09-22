@@ -6,7 +6,7 @@ enum GameMode {
   easy('쉬움', '🌱', '무난하게'),
   normal('보통', '🔥', '팽팽하게'),
   hard('어려움', '🎲', '운이 좋아야'),
-  hell('지옥', '😈', '돌아갈 길은 없다'),
+  hell('지옥', '😈', '시험해 보십시오'),
   endless('무한', '♾️', '얼마나 멀리');
 
   const GameMode(this.label, this.icon, this.tagline);

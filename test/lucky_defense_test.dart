@@ -376,7 +376,7 @@ void main() {
 
       expect(game.state.mode, GameMode.hell);
       // 지옥은 규칙을 적지 않고 분위기만 남긴다.
-      expect(find.textContaining('남은 것은 주사위뿐'), findsOneWidget);
+      expect(find.textContaining('주사위는 던져졌습니다'), findsOneWidget);
       expect(
         find.textContaining('도박입니다'),
         findsNothing,
@@ -397,7 +397,7 @@ void main() {
       // 도박을 처음 만나는 모드라, 여기서는 수치를 적어 준다.
       expect(find.textContaining('어려움에서는'), findsOneWidget);
       expect(find.textContaining('도박입니다'), findsOneWidget);
-      expect(find.textContaining('남은 것은 주사위뿐'), findsNothing);
+      expect(find.textContaining('주사위는 던져졌습니다'), findsNothing);
     });
   });
 
