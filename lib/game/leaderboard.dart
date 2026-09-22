@@ -20,6 +20,16 @@ class RankEntry {
   String toString() => 'RankEntry($name, $wave)';
 }
 
+/// 눈에는 안 보이지만 «공백» 으로 분류되지 않는 글자들.
+///
+/// `\s` 로는 안 걸린다. 한글 채움 문자(U+3164)로만 된 이름이 실제로 랭킹에
+/// 올라온 적이 있다 — 빈 칸처럼 보이는데 규칙의 «1자 이상» 을 통과한다.
+/// 서버 규칙(firestore.rules)도 같은 목록을 본다.
+final RegExp _blankLike = RegExp(
+  '[\u00a0\u1160\u200b-\u200f\u2028\u2029\u202f\u205f\u2060'
+  '\u2800\u3000\u3164\ufeff\uffa0]',
+);
+
 /// 이름에 허용하는 최대 글자 수. 규칙(firestore.rules)도 같은 값을 본다.
 const int kMaxRankNameLength = 12;
 
@@ -29,6 +39,7 @@ const int kMaxRankNameLength = 12;
 /// 서버 규칙도 같은 조건을 검사하므로 여기를 통과 못 하면 올릴 수 없다.
 String? normalizeRankName(String raw) {
   final cleaned = raw
+      .replaceAll(_blankLike, ' ')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
   if (cleaned.isEmpty) {

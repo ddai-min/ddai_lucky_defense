@@ -1651,6 +1651,31 @@ void main() {
       );
     });
 
+    test('눈에 안 보이는 글자로만 된 이름은 받지 않는다', () {
+      // 실제로 한글 채움 문자(U+3164)로만 된 이름이 랭킹에 올라온 적이 있다.
+      const blanks = [
+        '\u3164', // 한글 채움
+        '\uffa0', // 반각 한글 채움
+        '\u200b', // 폭 없는 공백
+        '\u2800', // 점자 빈 칸
+        '\u3000', // 전각 공백
+        '\u00a0', // 줄바꿈 없는 공백
+        '\u3164\u3164\u200b ',
+      ];
+      for (final raw in blanks) {
+        expect(
+          normalizeRankName(raw),
+          isNull,
+          reason: raw.codeUnits
+              .map((c) => 'U+${c.toRadixString(16)}')
+              .join(' '),
+        );
+      }
+      // 보이는 글자가 섞여 있으면 그 글자만 남는다.
+      expect(normalizeRankName('\u3164따이민\u3164'), '따이민');
+      expect(normalizeRankName('따\u200b민'), '따 민');
+    });
+
     test('랭킹은 어려움과 무한에만 있다', () {
       expect(GameMode.easy.hasRanking, isFalse);
       expect(GameMode.normal.hasRanking, isFalse);
