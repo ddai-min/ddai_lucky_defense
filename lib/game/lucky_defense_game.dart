@@ -21,7 +21,7 @@ import 'game_state.dart';
 import 'leaderboard.dart';
 import 'record_store.dart';
 
-/// 운빨 디펜스 본체.
+/// 따이 운빨 디펜스 본체.
 ///
 /// 컴포넌트는 모두 [fieldRoot] 아래에 스크린 좌표 그대로 배치한다.
 /// (카메라 변환을 쓰지 않으므로 좌표 계산이 단순하다.)

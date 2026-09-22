@@ -38,7 +38,7 @@ class IntroOverlay extends StatelessWidget {
                   const Text('🎲', style: TextStyle(fontSize: 38)),
                   const SizedBox(height: 6),
                   const Text(
-                    '운빨 디펜스',
+                    '따이 운빨 디펜스',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 22,

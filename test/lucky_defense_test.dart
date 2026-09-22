@@ -1492,7 +1492,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
     }
 
-    expect(find.text('운빨 디펜스'), findsOneWidget);
+    expect(find.text('따이 운빨 디펜스'), findsOneWidget);
     expect(find.text('소환'), findsOneWidget);
     expect(find.text('시작하기'), findsOneWidget);
 

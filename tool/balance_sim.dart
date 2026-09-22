@@ -449,7 +449,7 @@ String _pad(String s, int width) {
 }
 
 void _report() {
-  stdout.writeln('운빨 디펜스 밸런스 리포트');
+  stdout.writeln('따이 운빨 디펜스 밸런스 리포트');
   stdout.writeln('─' * 62);
   for (final mode in GameMode.values) {
     double hp(int w) => Balance.enemyHp(w, mode);

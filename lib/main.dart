@@ -30,7 +30,7 @@ class LuckyDefenseApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '운빨 디펜스',
+      title: '따이 운빨 디펜스',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const AppScrollBehavior(),
       theme: ThemeData(
