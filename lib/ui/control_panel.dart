@@ -316,18 +316,21 @@ class _UpgradeRowState extends State<_UpgradeRow> {
                   shortcut: GameKey.luck,
                   onTap: game.upgradeLuck,
                 ),
-                _UpgradeButton(
-                  icon: '❤️',
-                  title: '라이프',
-                  level: state.lives,
-                  effect: '+1',
-                  cost: '${Balance.reviveGems} 💎',
-                  color: GameColors.gem,
-                  enabled: state.gems >= Balance.reviveGems,
-                  shortcut: GameKey.life,
-                  onTap: game.buyLife,
-                  levelPrefix: '보유 ',
-                ),
+                // 지옥은 라이프를 살 수 없다. 누를 수 없는 버튼을 남겨 두면
+                // «다이아만 모으면 된다» 로 읽히므로 아예 빼 버린다.
+                if (state.mode.canBuyLife)
+                  _UpgradeButton(
+                    icon: '❤️',
+                    title: '라이프',
+                    level: state.lives,
+                    effect: '+1',
+                    cost: '${Balance.reviveGems} 💎',
+                    color: GameColors.gem,
+                    enabled: state.gems >= Balance.reviveGems,
+                    shortcut: GameKey.life,
+                    onTap: game.buyLife,
+                    levelPrefix: '보유 ',
+                  ),
               ],
             ),
             Positioned(

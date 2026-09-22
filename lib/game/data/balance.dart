@@ -44,6 +44,14 @@ class Balance {
   static const int startGems = 0;
   static const int startLives = 20;
 
+  /// 지옥의 시작 라이프. 한 마리도 흘릴 수 없고, 다이아로 살 수도 없다
+  /// ([GameMode.canBuyLife]).
+  static const int hellLives = 1;
+
+  /// 모드별 시작 라이프.
+  static int startLivesOf(GameMode mode) =>
+      mode == GameMode.hell ? hellLives : startLives;
+
   /// 합성에 필요한 동일 유닛 개수.
   static const int mergeCount = 3;
 
@@ -79,11 +87,11 @@ class Balance {
 
   /// [fromRarity] 유닛 [mergeCount] 개를 합성할 때의 성공 확률. 1 이면 확정이다.
   static double mergeChance(int fromRarity, GameMode mode) =>
-      mode == GameMode.hard && fromRarity == topTier - 1 ? hardMergeChance : 1;
+      mode.hasGamble && fromRarity == topTier - 1 ? hardMergeChance : 1;
 
   /// 등급별 피해 보정. 강화([atkBonus])와 곱해져 최종 피해가 된다.
   static double rarityDamageBonus(int rarity, GameMode mode) =>
-      mode == GameMode.hard && rarity == topTier ? hardTopTierDamage : 1;
+      mode.hasGamble && rarity == topTier ? hardTopTierDamage : 1;
 
   /// 보유 유닛이 많을수록 소환 비용이 오른다. 합성이 이득인 이유.
   ///
@@ -112,6 +120,7 @@ class Balance {
   static int? clearWave(GameMode mode) => switch (mode) {
     GameMode.easy || GameMode.normal => 100,
     GameMode.hard => 150,
+    GameMode.hell => 150,
     GameMode.endless => null,
   };
 
@@ -158,6 +167,11 @@ class Balance {
       // 동시에 팽팽하게 만들 수는 없다 — 둘 중 하나를 골라야 한다.
       case GameMode.hard:
         return _hardHp(wave);
+      // 지옥: 어려움과 규칙은 같고(초월 도박) 체력만 훨씬 높다. 결승선을
+      // 초월 여러 기를 세워야 닿는 자리에 놓는다 — 도달률을 맞추는 대신
+      // «초월 없이는 못 넘는다» 를 기준으로 삼은 모드다.
+      case GameMode.hell:
+        return _hellHp(wave);
       // 무한: «얼마나 멀리 가나» 가 전부라 끝까지 가파르다.
       case GameMode.endless:
         return baseHp * math.pow(1.125, wave - 1).toDouble();
@@ -175,13 +189,63 @@ class Balance {
   /// 웨이브» 가 붙은 모양이 된다.
   static double _hardHp(int wave) {
     final knee = math.min(wave, 100);
-    final base = _taperedHp(knee, growth: 1.147, taper: 0.9875);
+    final base = _taperedHp(knee, growth: _hardHpGrowth, taper: 0.9875);
     return base *
         math.pow(_hardLateGrowth, math.max(0, wave - 100)).toDouble();
   }
 
   /// 100웨이브 이후 웨이브당 체력 증가율.
   static const double _hardLateGrowth = 1.005;
+
+  /// 100웨이브까지의 증가율. 어려움과 지옥이 같이 쓴다 — 지옥은 여기가 아니라
+  /// [_hellLateGrowth] 에서만 갈린다.
+  static const double _hardHpGrowth = 1.147;
+
+  /// 지옥 체력. **어려움 곡선 그 자체에**, 50웨이브부터 복리를 더 얹는다.
+  ///
+  /// 꺾이는 자리를 뒤로 둔 이유는 초반을 건드릴 수 없기 때문이다. 어려움에서
+  /// 증가율을 0.005 만 올려 봤을 때 도달률이 3.4% → 0% 가 됐다 — 판이
+  /// **11웨이브에서 초월 0기로** 죽는다. 초월을 보기도 전에 끝나므로 «초월이
+  /// 더 필요한 모드» 가 아니라 «아무도 못 깨는 모드» 가 된다. 같은 이유로
+  /// 초월 피해 배수를 4배에서 12배까지 올려 봐도 도달률이 소수점까지 똑같았다.
+  ///
+  /// 처음에는 «50까지 어려움, 그 뒤는 고정 증가율» 로 짰는데 **51웨이브에서
+  /// 지옥이 어려움보다 약했다.** 어려움의 꺾인 곡선은 그 지점에서 웨이브당
+  /// 7.6% 씩 오르는데 고정 5.5% 가 그보다 완만했기 때문이다. 그래서 곡선을
+  /// 새로 그리는 대신 **어려움에 곱하는** 모양으로 바꿨다 — 이러면 어떤
+  /// 웨이브에서도 지옥이 어려움보다 약할 수 없다.
+  ///
+  /// 3,200판씩 돌려 잰 값이다.
+  ///
+  ///   곱하는 값  100웨 체력   150웨 체력    도달률   깬 판 초월   깬 판 수
+  ///   1.014       545,400    1,402,542     1.83%    5기(3~8)    44/2400
+  ///   1.018       664,058    2,079,209     0.47%    6기(4~8)    15/3200
+  ///   1.020(지옥)  732,531    2,530,099     0.19%    6기(6~8)     6/3200
+  ///   1.022       807,908    3,077,585     0.03%    6기(6~6)     1/3200
+  ///   1.025       935,429    4,125,788     0.00%      —          0/3200
+  ///
+  /// 1.020 을 골랐다 — 500판에 한 번쯤 깨지고, 깨는 판은 초월을 6기 이상
+  /// 세운 판뿐이다. 도박이 15% 라 8기는 사실상 뽑기 운의 천장이다.
+  /// 1.022 는 3,200판에 한 판이라 «깨진다» 고 말할 표본이 못 된다.
+  ///
+  /// **0.005 만 더 올리면 0% 다.** 이 근처에서는 체력을 올리는 것이 도달률과
+  /// 1:1 이 아니라 절벽으로 맞바꿔진다 — 플레이어 전투력이 초월에서 멈추기
+  /// 때문이다. 다른 수치(소환 비용·피해표·슬롯 수)를 건드리면 이 값도 같이
+  /// 다시 재야 한다.
+  ///
+  /// 위 표는 라이프 20 시절에 잰 것이다. 지금 지옥은 라이프가 1이므로
+  /// ([hellLives]) 실제 도달률은 이보다 낮다.
+  ///
+  ///   dart run tool/balance_sim.dart --top
+  static double _hellHp(int wave) =>
+      _hardHp(wave) *
+      math.pow(_hellExtra, math.max(0, wave - _hellKnee)).toDouble();
+
+  /// 지옥에서 어려움 위에 복리가 붙기 시작하는 웨이브.
+  static const int _hellKnee = 50;
+
+  /// [_hellKnee] 이후 웨이브마다 어려움 체력에 추가로 곱하는 값.
+  static const double _hellExtra = 1.020;
 
   /// 증가율이 웨이브마다 [taper] 배씩 꺾이는 체력 곡선.
   ///

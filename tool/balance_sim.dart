@@ -49,7 +49,7 @@ class SimConfig {
     this.damage,
     this.goldScale = 1.0,
     this.slots = kSlots,
-    this.lives = Balance.startLives,
+    this.lives,
     this.waveInterval = Balance.waveInterval,
     this.bossHpMultiplier = Balance.bossHpMultiplier,
     this.startLuck = 0,
@@ -72,7 +72,10 @@ class SimConfig {
   final List<double>? damage;
   final double goldScale;
   final int slots;
-  final int lives;
+  /// 시작 라이프. 안 넘기면 모드 기본값을 쓴다(지옥은 1).
+  final int? lives;
+
+  int get livesAt => lives ?? Balance.startLivesOf(mode);
   final double waveInterval;
   final double bossHpMultiplier;
   final int startLuck;
@@ -143,10 +146,19 @@ class WaveSnapshot {
 }
 
 class RunResult {
-  RunResult(this.endedAt, this.waves);
+  RunResult(this.endedAt, this.waves, this.topCount);
   final int endedAt;
   final List<WaveSnapshot> waves;
+
+  /// 판이 끝난 시점에 보드에 있던 최고 등급(초월) 기수.
+  ///
+  /// «초월 몇 기면 깨지는가» 를 재려고 둔다. 도달률만 보면 모드가 어려운
+  /// 것은 알아도 «무엇이 모자라서» 못 깨는지는 알 수 없다.
+  final int topCount;
 }
+
+int _topCount(List<Unit> units) =>
+    units.where((u) => u.$1 == Balance.topTier).length;
 
 /// 한 판을 끝까지 돌린다. 라이프가 0이 된 웨이브를 돌려준다.
 RunResult runOnce(int seed, SimConfig c, {int maxWave = 80}) {
@@ -155,7 +167,7 @@ RunResult runOnce(int seed, SimConfig c, {int maxWave = 80}) {
   final waves = <WaveSnapshot>[];
   var gold = Balance.startGold;
   var gems = Balance.startGems;
-  var lives = c.lives;
+  var lives = c.livesAt;
   var atk = 0;
   var spd = 0;
   var gld = 0;
@@ -273,11 +285,11 @@ RunResult runOnce(int seed, SimConfig c, {int maxWave = 80}) {
                   Balance.goldBonus(gld))
               .round();
       if (lives <= 0) {
-        return RunResult(w, waves);
+        return RunResult(w, waves, _topCount(units));
       }
     }
   }
-  return RunResult(maxWave, waves);
+  return RunResult(maxWave, waves, _topCount(units));
 }
 
 double _dps(List<Unit> units, SimConfig c, int atk, int spd) {
@@ -542,6 +554,56 @@ double _clearRateAcrossSkill(GameMode mode) {
   return cleared / (steps * runs) * 100;
 }
 
+/// «초월 몇 기면 깨지는가» 를 실력 전 구간에서 재서 표로 찍는다.
+///
+///   dart run tool/balance_sim.dart --top
+///
+/// 도달률 하나로는 모드가 왜 어려운지 알 수 없다. 깬 판과 못 깬 판의 초월
+/// 기수를 나란히 보면 «체력이 높아서» 인지 «초월이 안 나와서» 인지 갈린다.
+void _topReport() {
+  const steps = 8;
+  final runs = _seeds ~/ 2;
+  stdout.writeln('초월 기수와 결과 — 실력 전 구간, 모드별');
+  stdout.writeln('─' * 62);
+  stdout.writeln('표본은 모드마다 ${steps * runs}판이다 — 도달률이 이보다 낮은');
+  stdout.writeln('모드는 0% 로 찍힌다. «불가능» 이 아니라 «여기서는 안 잡힌다» 다.');
+  stdout.writeln('');
+  stdout.writeln('모드    결승선  도달률   깬 판 초월(중앙)  못 깬 판 초월(중앙)  깬 판 수');
+  for (final mode in GameMode.values) {
+    final end = Balance.clearWave(mode);
+    if (end == null) {
+      continue;
+    }
+    final won = <int>[];
+    final lost = <int>[];
+    for (var i = 0; i < steps; i++) {
+      final coverage =
+          kCasualCoverage +
+          (kSkilledCoverage - kCasualCoverage) * i / (steps - 1);
+      final c = SimConfig(mode: mode, coverage: coverage);
+      for (var s = 0; s < runs; s++) {
+        final r = runOnce(s, c, maxWave: end);
+        (r.endedAt >= end ? won : lost).add(r.topCount);
+      }
+    }
+    final rate = won.length / (won.length + lost.length) * 100;
+    stdout.writeln(
+      '${mode.label.padRight(7)}${end.toString().padLeft(5)}'
+      '${rate.toStringAsFixed(2).padLeft(7)}%'
+      '${_median(won).padLeft(15)}${_median(lost).padLeft(18)}'
+      '${'${won.length}/${won.length + lost.length}'.padLeft(12)}',
+    );
+  }
+}
+
+String _median(List<int> xs) {
+  if (xs.isEmpty) {
+    return '-';
+  }
+  final sorted = [...xs]..sort();
+  return sorted[sorted.length ~/ 2].toString();
+}
+
 /// 클리어 모드에서 마지막 웨이브까지 간 판의 비율.
 double _clearRate(SimConfig c) {
   var cleared = 0;
@@ -764,7 +826,9 @@ List<double> _geometric(double step) {
 }
 
 void main(List<String> args) {
-  if (args.contains('--levers')) {
+  if (args.contains('--top')) {
+    _topReport();
+  } else if (args.contains('--levers')) {
     _levers();
   } else if (args.contains('--luck')) {
     _luck();

@@ -7,7 +7,7 @@ rules_version = '2';
 //
 // 막는 것
 //   - 필드 구성이 정확히 name·wave·createdAt 인지 (다른 값 섞어 넣기 차단)
-//   - 웨이브가 모드별 최대치를 넘지 않는지 (어려움 150, 무한은 상한을 크게)
+//   - 웨이브가 모드별 최대치를 넘지 않는지 (어려움·지옥 150, 무한은 상한을 크게)
 //   - 이름 길이 (1~12자)
 //   - 수정·삭제 (한 번 올린 기록은 누구도 못 고친다)
 //
@@ -33,6 +33,13 @@ service cloud.firestore {
 
     // 어려움: Balance.clearWave(hard) 와 같은 값이다.
     match /ranking_hard/{entry} {
+      allow read: if true;
+      allow create: if isValidEntry(150);
+      allow update, delete: if false;
+    }
+
+    // 지옥: 어려움과 결승선이 같다(Balance.clearWave(hell) = 150).
+    match /ranking_hell/{entry} {
       allow read: if true;
       allow create: if isValidEntry(150);
       allow update, delete: if false;

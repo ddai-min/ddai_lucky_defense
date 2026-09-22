@@ -85,6 +85,12 @@ class GameState extends ChangeNotifier {
   /// 이번 판에서 최고 기록을 갈아치웠는지.
   bool isNewRecord = false;
 
+  /// 마지막 보스를 놓쳐서 끝났는지([GameMode.mustKillFinalBoss]).
+  ///
+  /// 라이프가 남아 있는데도 실패한 경우라, 결과 화면에서 이유를 따로 알려
+  /// 주지 않으면 «왜 졌는지» 알 수 없다.
+  bool failedByBossEscape = false;
+
   /// 이번 판 성적을 랭킹에 올렸는지. 한 판에 한 번만 받는다.
   bool rankSubmitted = false;
 
@@ -155,7 +161,7 @@ class GameState extends ChangeNotifier {
   void reset() {
     gold = Balance.startGold;
     gems = Balance.startGems;
-    lives = Balance.startLives;
+    lives = Balance.startLivesOf(mode);
     wave = 0;
     waveCountdown = Balance.firstWaveDelay;
     atkLevel = 0;
@@ -186,6 +192,7 @@ class GameState extends ChangeNotifier {
     bestRarityTier = 0;
     // best(최고 기록)는 판을 넘어 유지된다.
     isNewRecord = false;
+    failedByBossEscape = false;
     rankSubmitted = false;
     bossName = null;
     bossHpRatio = 0;

@@ -1,6 +1,6 @@
 # 랭킹 (Firebase Firestore)
 
-어려움·무한 두 모드에 사용자끼리 도달 웨이브를 겨루는 랭킹이 있습니다.
+어려움·지옥·무한 세 모드에 사용자끼리 도달 웨이브를 겨루는 랭킹이 있습니다.
 판이 끝나면 결과 화면에서 이름을 적어 올리고, 인트로의 🏆 버튼으로 목록을 봅니다.
 
 **설정하기 전에는 기능이 통째로 숨습니다.** `FIREBASE_PROJECT_ID` 와
@@ -14,7 +14,7 @@
 | --- | --- |
 | 프로젝트 | `ddai-lucky-defense` |
 | Firestore 위치 | `asia-northeast3` (서울) — **한 번 정하면 못 바꿉니다** |
-| 컬렉션 | `ranking_hard`, `ranking_endless` |
+| 컬렉션 | `ranking_hard`, `ranking_hell`, `ranking_endless` |
 | 배포 | 저장소 Secrets `FIREBASE_PROJECT_ID` · `FIREBASE_API_KEY` 로 들어갑니다 |
 
 로컬에서 랭킹까지 띄우려면 두 값을 직접 넘깁니다. 값은
@@ -72,7 +72,7 @@ firebase deploy --only firestore:rules
 규칙이 막는 것
 
 - 필드 구성이 정확히 `name`·`wave`·`createdAt` 인지 (다른 값 섞어 넣기 차단)
-- 웨이브 범위 (어려움 1~150, 무한 1~999)
+- 웨이브 범위 (어려움·지옥 1~150, 무한 1~999)
 - 이름 길이 1~12자
 - 수정·삭제 (한 번 올라간 기록은 누구도 못 고칩니다)
 

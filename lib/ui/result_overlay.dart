@@ -55,7 +55,11 @@ class ResultOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    cleared ? '정복 완료!' : '방어 실패',
+                    cleared
+                        ? '정복 완료!'
+                        : state.failedByBossEscape
+                        ? '보스 격퇴 실패'
+                        : '방어 실패',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -66,6 +70,9 @@ class ResultOverlay extends StatelessWidget {
                   Text(
                     cleared
                         ? '${Balance.clearWave(state.mode)} 웨이브를 모두 막아냈습니다'
+                        : state.failedByBossEscape
+                        // 라이프가 남아 있는데 진 경우라 이유를 밝혀 준다.
+                        ? '마지막 보스를 놓쳤습니다 · 라이프 ${state.lives} 남음'
                         : '${state.wave} 웨이브에서 무너졌습니다',
                     style: const TextStyle(
                       color: GameColors.sub,

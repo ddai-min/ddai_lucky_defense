@@ -43,6 +43,10 @@ class LuckyDefenseGame extends FlameGame {
   /// UI 가 랭킹을 아예 감춘다.
   final Leaderboard leaderboard;
 
+  /// 마지막 보스를 성까지 흘려보냈는지. [GameMode.mustKillFinalBoss] 모드에서만
+  /// 세워지고, 세워지면 라이프가 남아도 클리어가 되지 않는다.
+  bool _finalBossEscaped = false;
+
   final List<UnitComponent> units = [];
   final List<EnemyComponent> enemies = [];
   final Map<String, int> unitCounts = {};
@@ -265,9 +269,14 @@ class LuckyDefenseGame extends FlameGame {
       }
     }
 
-    // 마지막 웨이브를 남김없이 처리하면 클리어.
+    // 마지막 웨이브를 남김없이 처리하면 클리어 — 단, 어려움 이상에서 마지막
+    // 보스를 놓쳤다면 라이프가 얼마나 남았든 실패다.
     if (state.isFinalWave && _pendingSpawns == 0 && enemies.isEmpty) {
-      _clearGame();
+      if (_finalBossEscaped) {
+        _bossEscapeGameOver();
+      } else {
+        _clearGame();
+      }
       return;
     }
 
@@ -638,6 +647,12 @@ class LuckyDefenseGame extends FlameGame {
     if (e.dead && !enemies.contains(e)) {
       return;
     }
+    // 어려움 이상에서는 마지막 보스를 «잡아야» 클리어다. 놓친 것을 여기서
+    // 기억해 두지 않으면, 보스가 성까지 걸어간 뒤 enemies 가 비면서 그대로
+    // 클리어 판정이 난다([_tick]).
+    if (e.isBoss && state.isFinalWave && state.mode.mustKillFinalBoss) {
+      _finalBossEscaped = true;
+    }
     e.dead = true;
     enemies.remove(e);
     e.removeFromParent();
@@ -676,6 +691,8 @@ class LuckyDefenseGame extends FlameGame {
 
   /// 인트로를 닫고 전투를 시작한다.
   void startGame() {
+    // 모드마다 시작 라이프가 다르다. reset() 을 거치지 않는 첫 판도 맞춰 준다.
+    state.lives = Balance.startLivesOf(state.mode);
     state.started = true;
     state.phase = GamePhase.playing;
     state.notify();
@@ -704,7 +721,20 @@ class LuckyDefenseGame extends FlameGame {
       return;
     }
     state.mode = mode;
+    // 인트로 뒤의 HUD 가 고른 모드의 라이프를 바로 보여 준다 — 지옥을 골랐는데
+    // ❤️ 20 이 떠 있으면 시작 버튼을 누르기 전에는 규칙을 알 수 없다.
+    if (!state.started) {
+      state.lives = Balance.startLivesOf(mode);
+    }
     state.notify();
+  }
+
+  /// 마지막 보스를 놓쳐서 끝났다. 라이프는 남아 있다.
+  void _bossEscapeGameOver() {
+    state.failedByBossEscape = true;
+    state.showToast('마지막 보스를 놓쳤습니다', color: 0xFFFF5C6E);
+    shake(0.6);
+    _gameOver();
   }
 
   void _gameOver() {
@@ -960,6 +990,18 @@ class LuckyDefenseGame extends FlameGame {
   ///
   /// 소환은 무작위라 신화 같은 고등급을 손에 넣으려면 합성을 몇 겹씩 거쳐야
   /// 한다. 합성 규칙 자체를 검증하려면 보드를 직접 꾸밀 수 있어야 한다.
+  /// 마지막 웨이브 보스 한 기를 즉시 세운다. 테스트에서 «보스를 잡았나 놓쳤나»
+  /// 를 확인하려면 150웨이브까지 실제로 진행시킬 수 없다.
+  @visibleForTesting
+  EnemyComponent spawnFinalBossForTest() {
+    _spawnKind = bossForWave(state.wave);
+    _spawnHp = _hpAt(state.wave) * Balance.bossHpMultiplier;
+    _spawnLap = Balance.lapSeconds(state.wave) * Balance.bossLapMultiplier;
+    _spawnIsBoss = true;
+    _spawnEnemy();
+    return enemies.last;
+  }
+
   @visibleForTesting
   void placeUnits(UnitSpec spec, int count) {
     for (var i = 0; i < count; i++) {
@@ -1178,6 +1220,11 @@ class LuckyDefenseGame extends FlameGame {
   }
 
   bool buyLife() {
+    if (!state.mode.canBuyLife) {
+      state.showToast('${state.mode.label}에서는 라이프를 살 수 없습니다',
+          color: 0xFFFF5C6E);
+      return false;
+    }
     if (state.gems < Balance.reviveGems) {
       state.showToast('다이아가 부족합니다', color: 0xFFFF5C6E);
       return false;
@@ -1210,6 +1257,7 @@ class LuckyDefenseGame extends FlameGame {
     _pendingSpawns = 0;
     _spawnKind = null;
     _shakeTime = 0;
+    _finalBossEscaped = false;
     fieldRoot.position.setZero();
 
     state.reset();

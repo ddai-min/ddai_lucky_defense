@@ -84,15 +84,27 @@ class _RankingSheetState extends State<_RankingSheet> {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const Spacer(),
-                for (final mode in ranked) ...[
-                  if (mode != ranked.first) const SizedBox(width: 6),
-                  _ModeChip(
-                    mode: mode,
-                    selected: mode == _mode,
-                    onTap: () => _select(mode),
+                // 모드가 늘면 좁은 화면에서 제목과 칩이 부딪친다(320pt 에서
+                // 셋이 되자 3.6px 넘쳤다). 남는 자리에 밀어 넣고, 그래도
+                // 모자라면 가로로 밀어 볼 수 있게 한다.
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: Row(
+                      children: [
+                        for (final mode in ranked) ...[
+                          if (mode != ranked.first) const SizedBox(width: 6),
+                          _ModeChip(
+                            mode: mode,
+                            selected: mode == _mode,
+                            onTap: () => _select(mode),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ],
             ),
           ),

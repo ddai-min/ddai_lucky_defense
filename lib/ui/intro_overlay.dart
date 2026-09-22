@@ -122,12 +122,18 @@ class IntroOverlay extends StatelessWidget {
                             ),
                           ),
                         ],
+                        // 모드 수가 홀수면 마지막 칸이 빈다. 빈 자리를 채워
+                        // 두지 않으면 카드 하나가 줄 전체로 늘어난다.
+                        if (GameMode.values.length - i == 1) ...[
+                          const SizedBox(width: 8),
+                          const Expanded(child: SizedBox.shrink()),
+                        ],
                       ],
                     ),
                   ],
-                  if (game.state.mode == GameMode.hard) ...[
+                  if (game.state.mode.hasGamble) ...[
                     const SizedBox(height: 9),
-                    const _GambleNote(),
+                    _GambleNote(mode: game.state.mode),
                   ],
                   const SizedBox(height: 12),
                   Row(
@@ -252,9 +258,14 @@ class _ModeCard extends StatelessWidget {
   }
 }
 
-/// 어려움을 고른 동안만 뜨는 규칙 안내. 이 모드만 합성 규칙이 다르다.
+/// 어려움·지옥을 고른 동안만 뜨는 안내. 이 두 모드만 합성 규칙이 다르다.
+///
+/// 어려움은 규칙을 그대로 적어 준다 — 여기서 도박을 처음 만나기 때문이다.
+/// 지옥은 이미 그 규칙을 아는 사람이 고르는 모드라, 설명 대신 분위기만 남긴다.
 class _GambleNote extends StatelessWidget {
-  const _GambleNote();
+  const _GambleNote({required this.mode});
+
+  final GameMode mode;
 
   @override
   Widget build(BuildContext context) {
@@ -269,9 +280,12 @@ class _GambleNote extends StatelessWidget {
         border: Border.all(color: GameColors.life.withValues(alpha: 0.5)),
       ),
       child: Text(
-        '🎲 어려움에서는 신화 3개를 초월로 올리는 합성이 $chance% 도박입니다. '
-        '실패하면 ${Balance.mergeFailLoss}기가 사라지고, 성공하면 공격력이 '
-        '$bonus배인 초월이 나옵니다. 초월을 몇 기 세웠느냐로 판이 갈립니다.',
+        mode == GameMode.hell
+            ? '${mode.icon} 여기서 실력은 아무것도 아닙니다. '
+                  '남은 것은 주사위뿐. 운이 등을 돌리는 순간 문은 닫힙니다.'
+            : '${mode.icon} ${mode.label}에서는 신화 3개를 초월로 올리는 합성이 '
+                  '$chance% 도박입니다. 실패하면 ${Balance.mergeFailLoss}기가 '
+                  '사라지고, 성공하면 공격력이 $bonus배인 초월이 나옵니다.',
         style: const TextStyle(
           color: GameColors.life,
           fontSize: 10.5,

@@ -4,6 +4,7 @@ import 'package:ddai_lucky_defense/game/data/balance.dart';
 import 'package:ddai_lucky_defense/game/data/rarity.dart';
 import 'package:ddai_lucky_defense/game/data/unit_catalog.dart';
 import 'package:ddai_lucky_defense/game/field_layout.dart';
+import 'package:ddai_lucky_defense/game/components/enemy_component.dart';
 import 'package:ddai_lucky_defense/game/game_state.dart';
 import 'package:ddai_lucky_defense/game/leaderboard.dart';
 import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
@@ -11,6 +12,7 @@ import 'package:ddai_lucky_defense/game/record_store.dart';
 import 'package:ddai_lucky_defense/main.dart';
 import 'package:ddai_lucky_defense/ui/hud_bar.dart';
 import 'package:ddai_lucky_defense/ui/control_panel.dart';
+import 'package:ddai_lucky_defense/ui/kill_board.dart';
 import 'package:ddai_lucky_defense/ui/shortcuts.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart';
@@ -278,6 +280,341 @@ void main() {
 
     expect(game.paused, isTrue);
     expect(victim.isMounted, isFalse, reason: '제거가 처리된 뒤에 루프가 선다');
+  });
+
+  testWidgets('무한 모드에서 죽은 뒤에는 웨이브가 오르지 않는다', (tester) async {
+    final game = await _boot(tester);
+    game.state.mode = GameMode.endless;
+    game.startGame();
+    final state = game.state;
+
+    // 유닛 없이 방치해 죽인다.
+    for (var i = 0; i < 60 * 400 && !state.isFinished; i++) {
+      game.update(1 / 60);
+    }
+    await tester.pump();
+    expect(state.isGameOver, isTrue, reason: '먼저 죽어야 한다');
+
+    final atDeath = state.wave;
+    final countdownAtDeath = state.waveCountdown;
+    for (var i = 0; i < 60 * 300; i++) {
+      game.update(1 / 60);
+    }
+    await tester.pump();
+
+    // 무한 모드는 끝나는 웨이브가 없으므로, 판이 끝난 뒤에도 카운트다운이
+    // 돌면 웨이브가 영원히 올라간다.
+    expect(state.wave, atDeath, reason: '결과 화면 뒤에서 웨이브가 올라가면 안 된다');
+    expect(state.waveCountdown, countdownAtDeath, reason: '시계도 멈춰 있어야 한다');
+    expect(state.phase, GamePhase.gameOver);
+  });
+
+  group('지옥 난이도', () {
+    test('앞 50웨이브는 어려움과 한 체력도 다르지 않다', () {
+      // 초반을 올리면 초월을 보기도 전에 죽어 «아무도 못 깨는 모드» 가 된다.
+      for (var w = 1; w <= 50; w++) {
+        expect(
+          Balance.enemyHp(w, GameMode.hell),
+          Balance.enemyHp(w, GameMode.hard),
+          reason: '$w 웨이브',
+        );
+      }
+    });
+
+    test('50웨이브 이후에만 어려움보다 가파르다', () {
+      for (var w = 51; w <= 150; w++) {
+        expect(
+          Balance.enemyHp(w, GameMode.hell),
+          greaterThan(Balance.enemyHp(w, GameMode.hard)),
+          reason: '$w 웨이브',
+        );
+      }
+      // 결승선에서 어려움의 몇 배인지. 이 배수가 «초월 6기 이상» 을 만든다.
+      final ratio =
+          Balance.enemyHp(150, GameMode.hell) /
+          Balance.enemyHp(150, GameMode.hard);
+      expect(ratio, greaterThan(7), reason: '지옥 결승선은 어려움의 7배 이상');
+    });
+
+    test('어떤 웨이브에서도 어려움보다 약하지 않다', () {
+      // 처음엔 «50까지 어려움, 그 뒤 고정 증가율» 로 짰다가 51웨이브에서
+      // 지옥이 더 약해졌다 — 어려움의 꺾인 곡선이 그 지점에서 더 가팔라서다.
+      for (var w = 1; w <= 400; w++) {
+        expect(
+          Balance.enemyHp(w, GameMode.hell),
+          greaterThanOrEqualTo(Balance.enemyHp(w, GameMode.hard)),
+          reason: '$w 웨이브',
+        );
+      }
+    });
+
+    test('결승선은 어려움과 같은 150웨이브다', () {
+      expect(Balance.clearWave(GameMode.hell), 150);
+    });
+
+    test('초월 도박과 피해 보정이 그대로 붙는다', () {
+      expect(GameMode.hell.hasGamble, isTrue);
+      expect(
+        Balance.mergeChance(Rarity.mythic.index, GameMode.hell),
+        Balance.hardMergeChance,
+      );
+      expect(
+        Balance.rarityDamageBonus(Rarity.transcendent.index, GameMode.hell),
+        Balance.hardTopTierDamage,
+      );
+    });
+
+    testWidgets('인트로에서 고를 수 있고 도박 안내가 함께 뜬다', (tester) async {
+      final game = await _boot(tester);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      await tester.ensureVisible(find.text('지옥'));
+      await tester.tap(find.text('지옥'));
+      await tester.pump();
+
+      expect(game.state.mode, GameMode.hell);
+      // 지옥은 규칙을 적지 않고 분위기만 남긴다.
+      expect(find.textContaining('남은 것은 주사위뿐'), findsOneWidget);
+      expect(
+        find.textContaining('도박입니다'),
+        findsNothing,
+        reason: '어려움 문구가 지옥에 그대로 새어 나오면 안 된다',
+      );
+    });
+
+    testWidgets('어려움에는 규칙 설명이 그대로 남는다', (tester) async {
+      await _boot(tester);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      await tester.ensureVisible(find.text('어려움'));
+      await tester.tap(find.text('어려움'));
+      await tester.pump();
+
+      // 도박을 처음 만나는 모드라, 여기서는 수치를 적어 준다.
+      expect(find.textContaining('어려움에서는'), findsOneWidget);
+      expect(find.textContaining('도박입니다'), findsOneWidget);
+      expect(find.textContaining('남은 것은 주사위뿐'), findsNothing);
+    });
+  });
+
+  group('지옥: 라이프 1', () {
+    test('지옥만 시작 라이프가 1이다', () {
+      for (final mode in GameMode.values) {
+        expect(
+          Balance.startLivesOf(mode),
+          mode == GameMode.hell ? 1 : Balance.startLives,
+          reason: mode.label,
+        );
+      }
+    });
+
+    test('라이프를 살 수 없는 모드는 지옥뿐이다', () {
+      expect(
+        GameMode.values.where((m) => !m.canBuyLife),
+        [GameMode.hell],
+      );
+    });
+
+    testWidgets('지옥을 고르면 시작 전부터 라이프가 1로 보인다', (tester) async {
+      final game = await _boot(tester);
+      expect(game.state.lives, Balance.startLives);
+
+      game.setMode(GameMode.hell);
+      await tester.pump();
+      expect(game.state.lives, 1, reason: '인트로 HUD 가 바로 알려 줘야 한다');
+
+      // startGame 은 reset 을 거치지 않으므로 여기서도 맞춰져야 한다.
+      game.startGame();
+      await tester.pump();
+      expect(game.state.lives, 1);
+    });
+
+    testWidgets('다시 시작해도 1로 돌아온다', (tester) async {
+      final game = await _boot(tester);
+      game.setMode(GameMode.hell);
+      game.startGame();
+      game.state.lives = 7;
+
+      game.restart();
+      await tester.pump();
+      expect(game.state.lives, 1);
+    });
+
+    testWidgets('지옥에서는 다이아가 넉넉해도 라이프를 못 산다', (tester) async {
+      final game = await _boot(tester);
+      game.setMode(GameMode.hell);
+      game.startGame();
+      game.state.gems = 9999;
+      await tester.pump();
+
+      expect(game.buyLife(), isFalse);
+      expect(game.state.lives, 1);
+      expect(game.state.gems, 9999, reason: '다이아도 줄지 않는다');
+
+      // T 를 눌러도 마찬가지다.
+      await tester.sendKeyEvent(GameKey.life.key);
+      await tester.pump();
+      expect(game.state.lives, 1);
+    });
+
+    testWidgets('지옥에는 라이프 버튼이 아예 없다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      game.state.gems = 9999;
+      await tester.pump();
+
+      // 강화 목록은 가로로 스크롤된다. 끝까지 밀지 않으면 «없다» 가 그냥
+      // «아직 안 보인다» 라서 아무것도 검증하지 못한다.
+      Future<void> scrollToEnd() async {
+        for (var i = 0; i < 3; i++) {
+          await tester.drag(find.byType(ListView), const Offset(-400, 0));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+      }
+
+      await scrollToEnd();
+      expect(find.text('라이프'), findsOneWidget, reason: '쉬움에는 있다');
+
+      game.setMode(GameMode.hell);
+      await tester.pump();
+      await scrollToEnd();
+      expect(find.text('라이프'), findsNothing);
+      expect(find.text('행운'), findsOneWidget, reason: '나머지는 그대로다');
+    });
+
+    testWidgets('어려움에서는 그대로 살 수 있다', (tester) async {
+      final game = await _boot(tester);
+      game.setMode(GameMode.hard);
+      game.startGame();
+      game.state.gems = 9999;
+      await tester.pump();
+
+      expect(game.buyLife(), isTrue);
+      expect(game.state.lives, Balance.startLives + 1);
+    });
+  });
+
+  group('마지막 보스 격퇴', () {
+    /// 마지막 웨이브에 보스 한 기만 살아 있는 판을 만든다.
+    ///
+    /// 보스를 세우기 **전에** update 를 돌리면 «마지막 웨이브에 남은 적이
+    /// 없다» 로 읽혀 그 자리에서 클리어가 나 버린다. 그래서 상태만 맞춰 두고
+    /// 보스를 먼저 세운다.
+    Future<(LuckyDefenseGame, EnemyComponent)> atFinalBoss(
+      WidgetTester tester,
+      GameMode mode,
+    ) async {
+      final game = await _boot(tester);
+      game.state.mode = mode;
+      game.startGame();
+      game.state
+        ..wave = Balance.clearWave(mode)!
+        ..waveCountdown = 999
+        ..lives = 15;
+      // 여기서 pump 하면 안 된다 — 프레임이 한 번 돌면서 «마지막 웨이브에 남은
+      // 적이 없다» 로 읽혀 그 자리에서 클리어가 난다. 보스를 먼저 세운다.
+      return (game, game.spawnFinalBossForTest());
+    }
+
+    testWidgets('어려움: 마지막 보스를 놓치면 라이프가 남아도 실패다', (tester) async {
+      final (game, boss) = await atFinalBoss(tester, GameMode.hard);
+      expect(boss.isBoss, isTrue);
+
+      game.onEnemyReachedBase(boss);
+      game.update(1 / 60);
+      await tester.pump();
+
+      expect(game.state.lives, greaterThan(0), reason: '라이프는 남아 있다');
+      expect(game.state.isCleared, isFalse);
+      expect(game.state.isGameOver, isTrue);
+      expect(game.state.failedByBossEscape, isTrue);
+    });
+
+    testWidgets('어려움: 보스를 잡으면 클리어다', (tester) async {
+      final (game, boss) = await atFinalBoss(tester, GameMode.hard);
+
+      game.onEnemyKilled(boss);
+      game.update(1 / 60);
+      await tester.pump();
+
+      expect(game.state.isCleared, isTrue);
+      expect(game.state.failedByBossEscape, isFalse);
+    });
+
+    testWidgets('지옥도 같은 규칙이다', (tester) async {
+      final (game, boss) = await atFinalBoss(tester, GameMode.hell);
+      game.onEnemyReachedBase(boss);
+      game.update(1 / 60);
+      await tester.pump();
+
+      expect(game.state.isGameOver, isTrue);
+      expect(game.state.failedByBossEscape, isTrue);
+    });
+
+    // 판 하나에 _boot 를 두 번 부르면 위젯 트리가 재사용돼 게임이 새로
+    // 만들어지지 않는다. 모드마다 따로 돌린다.
+    for (final mode in [GameMode.easy, GameMode.normal]) {
+      testWidgets('${mode.label}은 놓쳐도 라이프가 남으면 클리어다', (tester) async {
+        final (game, boss) = await atFinalBoss(tester, mode);
+        game.onEnemyReachedBase(boss);
+        game.update(1 / 60);
+        await tester.pump();
+
+        expect(game.state.isCleared, isTrue);
+        expect(game.state.failedByBossEscape, isFalse);
+      });
+    }
+
+    testWidgets('결과 화면이 «라이프가 남았는데 왜 졌는지» 를 알려 준다', (tester) async {
+      final (game, boss) = await atFinalBoss(tester, GameMode.hard);
+      game.onEnemyReachedBase(boss);
+      game.update(1 / 60);
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(find.text('보스 격퇴 실패'), findsOneWidget);
+      // 같은 문장을 토스트도 쓰므로 결과 줄만 콕 집는다.
+      expect(
+        find.text('마지막 보스를 놓쳤습니다 · 라이프 ${game.state.lives} 남음'),
+        findsOneWidget,
+      );
+      expect(game.state.lives, greaterThan(0), reason: '라이프가 남았는데 졌다');
+      expect(find.text('방어 실패'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    test('규칙이 붙는 모드는 어려움·지옥뿐이다', () {
+      expect(
+        GameMode.values.where((m) => m.mustKillFinalBoss),
+        [GameMode.hard, GameMode.hell],
+      );
+    });
+
+    testWidgets('다시 시작하면 놓친 기록이 지워진다', (tester) async {
+      final (game, boss) = await atFinalBoss(tester, GameMode.hard);
+      game.onEnemyReachedBase(boss);
+      game.update(1 / 60);
+      await tester.pump();
+      expect(game.state.failedByBossEscape, isTrue);
+
+      game.restart();
+      await tester.pump();
+      expect(game.state.failedByBossEscape, isFalse);
+
+      // 놓친 기억도 지워져야 한다 — 남아 있으면 다음 판이 시작부터 실패다.
+      game.state
+        ..wave = Balance.clearWave(GameMode.hard)!
+        ..waveCountdown = 999;
+      game.update(1 / 60);
+      await tester.pump();
+      expect(game.state.isGameOver, isFalse);
+    });
   });
 
   group('합성 잠금', () {
@@ -665,11 +1002,16 @@ void main() {
   group('어려움: 초월 합성 도박', () {
     final myth = kUnitsByRarity[Rarity.mythic]!.first;
 
-    test('도박은 어려움의 초월 합성 하나뿐이다', () {
+    test('도박은 도박 모드의 초월 합성 하나뿐이다', () {
+      expect(
+        GameMode.values.where((m) => m.hasGamble),
+        [GameMode.hard, GameMode.hell],
+        reason: '도박이 붙는 모드가 늘면 여기도 같이 고쳐야 한다',
+      );
       for (final mode in GameMode.values) {
         for (var r = 0; r < Rarity.values.length - 1; r++) {
           final chance = Balance.mergeChance(r, mode);
-          final gamble = mode == GameMode.hard && r == Rarity.mythic.index;
+          final gamble = mode.hasGamble && r == Rarity.mythic.index;
           expect(
             chance,
             gamble ? Balance.hardMergeChance : 1,
@@ -679,11 +1021,10 @@ void main() {
       }
     });
 
-    test('초월 보너스도 어려움에서만 붙는다', () {
+    test('초월 보너스도 도박 모드에서만 붙는다', () {
       for (final mode in GameMode.values) {
         for (final rarity in Rarity.values) {
-          final boosted =
-              mode == GameMode.hard && rarity == Rarity.transcendent;
+          final boosted = mode.hasGamble && rarity == Rarity.transcendent;
           expect(
             Balance.rarityDamageBonus(rarity.index, mode),
             boosted ? Balance.hardTopTierDamage : 1,
@@ -966,8 +1307,13 @@ void main() {
 
     testWidgets('드롭다운이 우측 상단에서 열리고 유닛별로 보여 준다', (tester) async {
       final game = await _boot(tester);
-      // 시작 전에는 보여 줄 게 없으니 아예 안 뜬다.
-      expect(find.text('💀'), findsNothing);
+      // 이모지 하나로 찾으면 다른 화면(모드 카드 등)과 부딪치므로 킬보드
+      // 안쪽만 본다.
+      final toggle = find.descendant(
+        of: find.byType(KillBoard),
+        matching: find.text('💀'),
+      );
+      expect(toggle, findsNothing, reason: '시작 전에는 보여 줄 게 없다');
 
       game.startGame();
       final state = game.state;
@@ -978,6 +1324,7 @@ void main() {
       await tester.pump();
 
       // 접힌 상태에서는 합계만 보인다.
+      expect(toggle, findsOneWidget);
       expect(find.text('9'), findsOneWidget);
       expect(find.text('슬라임'), findsNothing);
 
@@ -1054,6 +1401,43 @@ void main() {
   });
 
   group('랭킹', () {
+    testWidgets('좁은 화면에서도 모드 칩 셋이 넘치지 않는다', (tester) async {
+      // 지옥이 붙어 칩이 셋(어려움·지옥·무한)이 됐다. 320pt 에서 확인한다.
+      tester.view
+        ..physicalSize = const Size(640, 1600)
+        ..devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      late LuckyDefenseGame game;
+      await tester.pumpWidget(
+        LuckyDefenseApp(
+          gameFactory: () {
+            game = LuckyDefenseGame(
+              state: GameState(),
+              random: math.Random(1),
+              records: MemoryRecordStore(),
+              leaderboard: MemoryLeaderboard(),
+            );
+            return game;
+          },
+        ),
+      );
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      await tester.ensureVisible(find.text('랭킹'));
+      await tester.tap(find.text('랭킹'));
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(tester.takeException(), isNull);
+      for (final mode in GameMode.values.where((m) => m.hasRanking)) {
+        expect(find.text(mode.label), findsWidgets, reason: mode.label);
+      }
+    });
+
     test('이름을 다듬는다', () {
       expect(normalizeRankName('  택민  '), '택민');
       expect(normalizeRankName('택\n민   입니다'), '택 민 입니다');
@@ -1070,6 +1454,7 @@ void main() {
       expect(GameMode.easy.hasRanking, isFalse);
       expect(GameMode.normal.hasRanking, isFalse);
       expect(GameMode.hard.hasRanking, isTrue);
+      expect(GameMode.hell.hasRanking, isTrue);
       expect(GameMode.endless.hasRanking, isTrue);
     });
 
