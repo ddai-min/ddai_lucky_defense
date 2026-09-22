@@ -34,7 +34,16 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
   double _phase = 0;
   double _spawnPop = 0;
   Vector2 _aim = Vector2(1, 0);
+  /// 드래그를 시작한 자리. 놓기 전까지 **여기서** 쏜다.
   Vector2? _dragAnchor;
+
+  /// 총알이 나가는 자리.
+  ///
+  /// 드래그 중에는 몸이 손가락을 따라가지만 사격은 원래 자리에서 계속한다.
+  /// 끌고 가는 동안 사거리가 손가락을 따라다니면, 자리를 옮기는 것만으로
+  /// 먼 곳의 몬스터를 때릴 수 있어 «들고 휘두르기» 가 되기 때문이다.
+  /// 놓는 순간 [slotIndex] 가 정해지고 그때부터 새 자리에서 쏜다.
+  Vector2 get firePosition => _dragAnchor ?? position;
 
   bool get isSelected => game.selected == this;
   bool get isMergeReady =>
@@ -65,9 +74,10 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
 
     _cooldown -= dt;
     if (_cooldown <= 0) {
-      final target = game.findTarget(position, range);
+      final from = firePosition;
+      final target = game.findTarget(from, range);
       if (target != null) {
-        final d = target.position - position;
+        final d = target.position - from;
         if (d.length2 > 0) {
           _aim = d.normalized();
         }
@@ -117,6 +127,14 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
     }
     _dragAnchor = null;
   }
+
+  /// 드래그 상태를 테스트에서 흉내 낸다. 제스처를 실제로 발생시키지 않고도
+  /// «끌고 있는 동안» 의 동작을 확인할 수 있다.
+  @visibleForTesting
+  void beginDragForTest() => _dragAnchor = position.clone();
+
+  @visibleForTesting
+  void endDragForTest() => _dragAnchor = null;
 
   // ─────────────────────────── 렌더 ───────────────────────────
   @override

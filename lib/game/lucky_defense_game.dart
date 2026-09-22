@@ -442,7 +442,8 @@ class LuckyDefenseGame extends FlameGame {
 
   void fireAt(UnitComponent unit, EnemyComponent target) {
     final spec = unit.spec;
-    final origin = unit.position.clone();
+    // 드래그 중이면 손가락이 아니라 원래 자리에서 나간다([UnitComponent.firePosition]).
+    final origin = unit.firePosition.clone();
     fieldRoot.add(
       ProjectileComponent(
         game: this,

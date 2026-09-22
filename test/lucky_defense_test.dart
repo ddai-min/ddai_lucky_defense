@@ -5,6 +5,7 @@ import 'package:ddai_lucky_defense/game/data/rarity.dart';
 import 'package:ddai_lucky_defense/game/data/unit_catalog.dart';
 import 'package:ddai_lucky_defense/game/field_layout.dart';
 import 'package:ddai_lucky_defense/game/components/enemy_component.dart';
+import 'package:ddai_lucky_defense/game/components/projectile_component.dart';
 import 'package:ddai_lucky_defense/game/game_state.dart';
 import 'package:ddai_lucky_defense/game/leaderboard.dart';
 import 'package:ddai_lucky_defense/game/lucky_defense_game.dart';
@@ -1911,6 +1912,63 @@ void main() {
       ratesAfter[Rarity.normal.index],
       lessThan(ratesBefore[Rarity.normal.index]),
     );
+  });
+
+  group('드래그 중 사격 위치', () {
+    testWidgets('놓기 전까지는 출발한 자리에서 쏜다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      game.placeUnits(kUnitById['slime']!, 1);
+      final unit = game.units.first;
+      final home = unit.position.clone();
+      await tester.pump();
+
+      // 몸을 멀찍이 끌어다 놓는다(드래그 중인 상태).
+      unit.beginDragForTest();
+      unit.position.add(Vector2(200, 120));
+
+      expect(unit.position, isNot(home), reason: '몸은 따라왔다');
+      expect(unit.firePosition, home, reason: '사격은 원래 자리에서');
+
+      // 놓으면 그때부터 새 자리다.
+      unit.endDragForTest();
+      expect(unit.firePosition, unit.position);
+    });
+
+    testWidgets('드래그 중 날아가는 총알도 원래 자리에서 나간다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      game.placeUnits(kUnitById['slime']!, 1);
+      final unit = game.units.first;
+      final home = unit.position.clone();
+      game.state.waveCountdown = 0.05;
+      for (var i = 0; i < 60 * 15 && game.enemies.isEmpty; i++) {
+        game.update(1 / 60);
+      }
+      expect(game.enemies, isNotEmpty, reason: '쏠 대상이 있어야 한다');
+
+      unit.beginDragForTest();
+      unit.position.add(Vector2(150, 90));
+      // 총알은 빠르게 날아가 사라지므로 매 프레임 훑어 «갓 생긴» 것을 잡는다.
+      final seen = <Vector2>[];
+      final known = <ProjectileComponent>{};
+      for (var i = 0; i < 60 * 5; i++) {
+        game.update(1 / 60);
+        for (final p in game.fieldRoot.children
+            .whereType<ProjectileComponent>()) {
+          if (known.add(p)) {
+            seen.add(p.position.clone());
+          }
+        }
+      }
+
+      expect(seen, isNotEmpty, reason: '드래그 중에도 쏜다');
+      // 끌고 간 자리가 아니라 원래 자리 근처에서 나와야 한다.
+      final dragged = unit.position.distanceTo(home);
+      for (final origin in seen) {
+        expect(origin.distanceTo(home), lessThan(dragged / 2));
+      }
+    });
   });
 
   testWidgets('드래그로 유닛 자리를 서로 바꾼다', (tester) async {
