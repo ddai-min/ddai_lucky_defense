@@ -14,9 +14,10 @@
 // 불러올 수 없기 때문이다.
 //   1. 등급별 유닛 종류 수 [kTypesPerRarity]
 //   2. 슬롯 수 [kSlots]
-//   3. 자동 판매 대상 고르는 규칙 [_autoSellIndex] — pickAutoSellIndex 의 사본
+//   3. 유닛별 피해·공속 배율 [kUnitMultipliers]
+//   4. 자동 판매 대상 고르는 규칙 [_autoSellIndex] — pickAutoSellIndex 의 사본
 //      고급소환이 겨냥할 유닛 [_highSummonTarget] — pickHighSummonTarget 의 사본
-// 1·2 는 테스트(«시뮬레이터가 복사해 쓰는 상수가 실제 게임과 맞는다»)가
+// 1~3 은 테스트(«시뮬레이터가 복사해 쓰는 상수가 실제 게임과 맞는다»)가
 // 어긋나지 않도록 지켜 준다.
 
 import 'dart:io';
@@ -30,6 +31,22 @@ const List<int> kTypesPerRarity = [4, 4, 4, 4, 4, 3, 3];
 
 /// 배치 가능한 슬롯 수.
 const int kSlots = 21;
+
+/// 유닛마다 붙은 (피해, 공속) 배율. 등급별로 종류 순서대로다.
+///
+/// 이걸 빼고 등급 기본치만 쓰면 **초월을 크게 과소평가한다.** 초월 셋의 배율
+/// 곱이 평균 1.92 라, 등급 기본치로만 재면 초월 한 기가 신화의 18.1배로
+/// 나오지만 실제로는 25.8배다. 그만큼 필요한 초월 기수가 부풀려져, 조정할
+/// 때마다 같은 방향으로 틀린다.
+const List<List<(double dmg, double spd)>> kUnitMultipliers = [
+  [(1.0, 1.12), (0.85, 0.9), (0.7, 0.88), (0.8, 1.0)], // 노말
+  [(1.05, 0.85), (0.9, 1.05), (0.8, 1.0), (1.38, 0.8)], // 레어
+  [(1.28, 1.1), (0.95, 1.0), (1.1, 0.85), (0.95, 1.15)], // 유니크
+  [(1.2, 0.9), (1.05, 1.0), (1.05, 1.1), (1.15, 1.25)], // 에픽
+  [(1.25, 1.0), (1.15, 1.05), (1.95, 0.95), (1.05, 1.3)], // 레전더리
+  [(1.3, 1.0), (1.45, 1.0), (1.2, 1.1)], // 신화
+  [(1.6, 1.2), (1.75, 1.1), (2.1, 0.92)], // 초월
+];
 
 /// 사거리 밖이거나 재장전 중이라 명목 DPS 가 전부 몬스터에게 닿지는 않는다.
 /// 광역 유닛이 여럿을 동시에 때리는 몫은 일부 되돌아온다.
@@ -296,7 +313,8 @@ double _dps(List<Unit> units, SimConfig c, int atk, int spd) {
   final table = c.damageTable;
   var base = 0.0;
   for (final u in units) {
-    base += table[u.$1] * Balance.attackSpeed[u.$1];
+    final (dmg, spdMul) = kUnitMultipliers[u.$1][u.$2];
+    base += table[u.$1] * dmg * Balance.attackSpeed[u.$1] * spdMul;
   }
   return base * Balance.atkBonus(atk) * Balance.spdBonus(spd) * c.coverage;
 }
