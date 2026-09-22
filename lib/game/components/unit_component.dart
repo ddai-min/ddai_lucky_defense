@@ -10,6 +10,9 @@ import '../lucky_defense_game.dart';
 import 'render_utils.dart';
 
 /// 슬롯에 배치되어 자동으로 공격하는 유닛.
+const _unitShadow = Color(0x59000000);
+const _badgeRing = Color(0xBFFFFFFF);
+
 class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
   UnitComponent({
     required this.game,
@@ -124,15 +127,12 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
       canvas.drawCircle(
         center,
         range,
-        Paint()..color = rarity.color.withValues(alpha: 0.07),
+        fillPaint(rarity.color.withValues(alpha: 0.07)),
       );
       canvas.drawCircle(
         center,
         range,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = rarity.color.withValues(alpha: 0.55),
+        strokePaint(rarity.color.withValues(alpha: 0.55), 1.5),
       );
     }
 
@@ -152,35 +152,32 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
 
     canvas.drawRRect(
       body.shift(const Offset(0, 3)),
-      Paint()..color = Colors.black.withValues(alpha: 0.35),
+      fillPaint(_unitShadow),
     );
 
     if (rarity.index >= Rarity.epic.index) {
       canvas.drawRRect(
         body,
-        Paint()
-          ..color = rarity.color.withValues(
-            alpha: 0.35 + 0.2 * math.sin(_phase * 3),
-          )
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+        blurPaint(
+          rarity.color.withValues(alpha: 0.35 + 0.2 * math.sin(_phase * 3)),
+          9,
+        ),
       );
     }
 
     canvas.drawRRect(
       body,
-      Paint()
-        ..shader = badgeShader(
+      shaderPaint(
+        badgeShader(
           Color.lerp(rarity.deep, rarity.color, 0.35)!,
           rarity.deep,
           half,
         ),
+      ),
     );
     canvas.drawRRect(
       body,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = isSelected ? 3 : 2
-        ..color = isSelected ? Colors.white : rarity.color,
+      strokePaint(isSelected ? Colors.white : rarity.color, isSelected ? 3 : 2),
     );
 
     // 공격 시 총구 섬광
@@ -188,7 +185,7 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
       canvas.drawCircle(
         Offset(_aim.x * half * 0.9, _aim.y * half * 0.9),
         half * 0.22 * _recoil,
-        Paint()..color = fadeColor(spec.style.color, _recoil),
+        fillPaint(fadeColor(spec.style.color, _recoil)),
       );
     }
 
@@ -203,7 +200,7 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
     canvas.drawCircle(
       Offset(-half * 0.68, half * 0.68),
       half * 0.15,
-      Paint()..color = spec.style.color,
+      fillPaint(spec.style.color),
     );
 
     canvas.restore();
@@ -221,12 +218,10 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
           ),
           Radius.circular(half * 0.5),
         ),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..color = const Color(
-            0xFF6BFFB0,
-          ).withValues(alpha: 0.45 + glow * 0.5),
+        strokePaint(
+          const Color(0xFF6BFFB0).withValues(alpha: 0.45 + glow * 0.5),
+          2.4,
+        ),
       );
     }
   }
@@ -242,16 +237,12 @@ class UnitComponent extends PositionComponent with TapCallbacks, DragCallbacks {
     canvas.drawCircle(
       c,
       r,
-      Paint()
-        ..color = ready ? const Color(0xFF23C77E) : const Color(0xFF2B3346),
+      fillPaint(ready ? const Color(0xFF23C77E) : const Color(0xFF2B3346)),
     );
     canvas.drawCircle(
       c,
       r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = Colors.white.withValues(alpha: 0.75),
+      strokePaint(_badgeRing, 1.4),
     );
     drawTextCentered(
       canvas,

@@ -81,15 +81,12 @@ class SplashRing extends PositionComponent {
     canvas.drawCircle(
       Offset.zero,
       r,
-      Paint()..color = fadeColor(color, alpha * 0.22),
+      fillPaint(fadeColor(color, alpha * 0.22)),
     );
     canvas.drawCircle(
       Offset.zero,
       r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3 * (1 - p) + 1
-        ..color = fadeColor(color, alpha),
+      strokePaint(fadeColor(color, alpha), 3 * (1 - p) + 1),
     );
   }
 }
@@ -104,6 +101,19 @@ class ChainLightning extends PositionComponent {
   static const double _duration = 0.22;
   final math.Random _rng = math.Random();
   late final List<Offset> _jagged = _buildJagged();
+
+  /// 꺾은선 모양은 변하지 않는다. Path 는 네이티브 객체라 프레임마다 만들면
+  /// 그대로 쌓이므로 한 번만 만들어 둔다.
+  late final Path _path = () {
+    final path = Path();
+    if (_jagged.isNotEmpty) {
+      path.moveTo(_jagged.first.dx, _jagged.first.dy);
+      for (var i = 1; i < _jagged.length; i++) {
+        path.lineTo(_jagged[i].dx, _jagged[i].dy);
+      }
+    }
+    return path;
+  }();
 
   List<Offset> _buildJagged() {
     final out = <Offset>[];
@@ -141,26 +151,14 @@ class ChainLightning extends PositionComponent {
       return;
     }
     final alpha = 1 - (_t / _duration).clamp(0.0, 1.0);
-    final path = Path()..moveTo(_jagged.first.dx, _jagged.first.dy);
-    for (var i = 1; i < _jagged.length; i++) {
-      path.lineTo(_jagged[i].dx, _jagged[i].dy);
-    }
     canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 7
-        ..strokeCap = StrokeCap.round
-        ..color = fadeColor(color, alpha * 0.35)
+      _path,
+      strokePaint(fadeColor(color, alpha * 0.35), 7, cap: StrokeCap.round)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
     canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..strokeCap = StrokeCap.round
-        ..color = fadeColor(Colors.white, alpha),
+      _path,
+      strokePaint(fadeColor(Colors.white, alpha), 2.2, cap: StrokeCap.round),
     );
   }
 }
@@ -223,7 +221,7 @@ class BurstEffect extends PositionComponent {
       canvas.drawCircle(
         Offset(p.pos.x, p.pos.y),
         p.radius * alpha,
-        Paint()..color = fadeColor(p.color, alpha),
+        fillPaint(fadeColor(p.color, alpha)),
       );
     }
   }
@@ -270,21 +268,16 @@ class SummonFlash extends PositionComponent {
     if (tier >= 3) {
       canvas.drawRRect(
         rect,
-        Paint()
-          ..color = fadeColor(color, alpha * 0.6)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+        blurPaint(fadeColor(color, alpha * 0.6), 12),
       );
     }
     canvas.drawRRect(
       rect,
-      Paint()..color = fadeColor(const Color(0xFF10151F), alpha * 0.95),
+      fillPaint(fadeColor(const Color(0xFF10151F), alpha * 0.95)),
     );
     canvas.drawRRect(
       rect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = fadeColor(color, alpha),
+      strokePaint(fadeColor(color, alpha), 2),
     );
     drawTextCentered(
       canvas,
@@ -312,6 +305,8 @@ class SummonFlash extends PositionComponent {
 }
 
 /// 웨이브/보스 등장 배너.
+const _bannerRect = Rect.fromLTWH(-260, -26, 520, 52);
+
 class WaveBanner extends PositionComponent {
   WaveBanner(this.title, this.subtitle, this.color, Vector2 center)
     : super(position: center.clone(), priority: kFxPriority + 8);
@@ -341,15 +336,8 @@ class WaveBanner extends PositionComponent {
     canvas.save();
     canvas.translate(dx, 0);
     canvas.drawRect(
-      const Rect.fromLTWH(-260, -26, 520, 52),
-      Paint()
-        ..shader = LinearGradient(
-          colors: [
-            fadeColor(color, 0),
-            fadeColor(color, alpha * 0.30),
-            fadeColor(color, 0),
-          ],
-        ).createShader(const Rect.fromLTWH(-260, -26, 520, 52)),
+      _bannerRect,
+      shaderPaint(bandShader(color, alpha * 0.30, _bannerRect)),
     );
     drawTextCentered(
       canvas,

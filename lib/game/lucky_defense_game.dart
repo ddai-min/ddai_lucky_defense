@@ -107,6 +107,9 @@ class LuckyDefenseGame extends FlameGame {
     state.slotCount = layout.slotCount;
     _recount();
 
+    state.addListener(_syncEngineRunning);
+    _syncEngineRunning();
+
     // 저장소 I/O가 게임 로딩을 막지 않도록 백그라운드로 돌린다.
     unawaited(_loadBestRecord());
   }
@@ -175,13 +178,47 @@ class LuckyDefenseGame extends FlameGame {
   }
 
   // ───────────────────────────── 루프 ─────────────────────────────
+
+  /// 놀고 있을 때는 루프를 아예 세운다.
+  ///
+  /// 인트로·일시정지·결과 화면에서는 그림이 멈춰 있는데도 Flame 은 초당 60번
+  /// 다시 그린다. 웹(CanvasKit)에서는 그 프레임마다 네이티브(WASM) 메모리가
+  /// 조금씩 늘고 되돌아오지 않는다 — **인트로를 켜 두기만 해도 80초에 64MB**
+  /// 가 늘었다. 멈춘 그림을 다시 그릴 이유도 없으니 루프를 세운다.
+  ///
+  /// 세우기 직전에 dt 0 으로 한 번 돌려 대기 중인 컴포넌트 추가·제거를
+  /// 처리한다 — 그냥 세우면 마침 그 프레임에 죽은 몬스터가 화면에 남는다.
+  bool _wantEngineRunning = false;
+
+  void _syncEngineRunning() {
+    if (!_ready) {
+      return;
+    }
+    _wantEngineRunning = state.started && !state.paused && !state.isFinished;
+    // 재개는 바로 해도 된다 — 루프가 서 있는 동안이라 순회 중일 수 없다.
+    // 반대로 «세우기» 는 [update] 맨 앞으로 미룬다. 이 리스너는 컴포넌트를
+    // 순회하는 도중(몬스터가 죽으면서 알림이 뜰 때)에도 불리므로, 여기서
+    // 트리를 한 번 더 돌리면 ConcurrentModificationError 가 난다.
+    if (_wantEngineRunning && paused) {
+      resumeEngine();
+    }
+  }
+
+  @override
+  void onRemove() {
+    state.removeListener(_syncEngineRunning);
+    super.onRemove();
+  }
+
   @override
   void update(double dt) {
-    if (state.paused) {
-      // 시간만 멈춘다. dt 0 으로 한 번 돌려서 대기 중인 컴포넌트 추가·제거는
-      // 처리해 준다 — 아예 건너뛰면 마침 그 프레임에 죽은 몬스터가 화면에
-      // 그대로 남고, 멈춘 채로 붙은 컴포넌트는 아예 뜨지 않는다.
+    if (!_wantEngineRunning) {
+      // 세우기로 한 뒤의 첫 프레임. dt 0 으로 한 번 돌려 대기 중인 컴포넌트
+      // 추가·제거를 처리하고 나서 루프를 세운다 — 그냥 세우면 마침 그 프레임에
+      // 죽은 몬스터가 화면에 그대로 남는다. 세운 뒤로는 update 가 아예 불리지
+      // 않으므로 이 길은 멈출 때 딱 한 번만 지난다.
       super.update(0);
+      pauseEngine();
       return;
     }
     final base = math.min(dt, 1 / 30);

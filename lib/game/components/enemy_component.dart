@@ -8,6 +8,13 @@ import '../lucky_defense_game.dart';
 import 'render_utils.dart';
 
 /// 경로를 따라 걷는 몬스터.
+/// 프레임마다 `withValues` 로 다시 만들 이유가 없는 색들.
+const _shadow = Color(0x52000000);
+const _outline = Color(0x73000000);
+const _slowRing = Color(0xD97FD8FF);
+const _poisonDot = Color(0xD98BE36B);
+const _hpBarBg = Color(0x99000000);
+
 class EnemyComponent extends PositionComponent {
   EnemyComponent({
     required this.game,
@@ -169,7 +176,7 @@ class EnemyComponent extends PositionComponent {
         width: r * 1.7,
         height: r * 0.5,
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.32),
+      fillPaint(_shadow),
     );
 
     canvas.save();
@@ -179,25 +186,20 @@ class EnemyComponent extends PositionComponent {
       canvas.drawCircle(
         Offset.zero,
         r * 1.45,
-        Paint()
-          ..color = kind.color.withValues(alpha: 0.35)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        blurPaint(kind.color.withValues(alpha: 0.35), 10),
       );
     }
 
     canvas.drawCircle(
       Offset.zero,
       r,
-      Paint()..shader = orbShader(kind.color, r),
+      shaderPaint(orbShader(kind.color, r)),
     );
 
     canvas.drawCircle(
       Offset.zero,
       r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = isBoss ? 3 : 1.6
-        ..color = Colors.black.withValues(alpha: 0.45),
+      strokePaint(_outline, isBoss ? 3 : 1.6),
     );
 
     drawTextCentered(
@@ -211,17 +213,14 @@ class EnemyComponent extends PositionComponent {
       canvas.drawCircle(
         Offset.zero,
         r,
-        Paint()..color = fadeColor(Colors.white, _hitFlash * 0.6),
+        fillPaint(fadeColor(Colors.white, _hitFlash * 0.6)),
       );
     }
     if (isSlowed) {
       canvas.drawCircle(
         Offset.zero,
         r * 1.16,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = const Color(0xFF7FD8FF).withValues(alpha: 0.85),
+        strokePaint(_slowRing, 2),
       );
     }
     if (isPoisoned) {
@@ -230,7 +229,7 @@ class EnemyComponent extends PositionComponent {
         canvas.drawCircle(
           Offset(math.cos(a) * r * 0.9, math.sin(a) * r * 0.7 - r * 0.5),
           r * 0.16,
-          Paint()..color = const Color(0xFF8BE36B).withValues(alpha: 0.85),
+          fillPaint(_poisonDot),
         );
       }
     }
@@ -250,7 +249,7 @@ class EnemyComponent extends PositionComponent {
       Rect.fromLTWH(-w / 2, top, w, h),
       Radius.circular(h / 2),
     );
-    canvas.drawRRect(bg, Paint()..color = Colors.black.withValues(alpha: 0.6));
+    canvas.drawRRect(bg, fillPaint(_hpBarBg));
     final fillColor = hpRatio > 0.5
         ? const Color(0xFF5BD98A)
         : hpRatio > 0.22
@@ -261,7 +260,7 @@ class EnemyComponent extends PositionComponent {
         Rect.fromLTWH(-w / 2, top, w * hpRatio, h),
         Radius.circular(h / 2),
       ),
-      Paint()..color = fillColor,
+      fillPaint(fillColor),
     );
   }
 }

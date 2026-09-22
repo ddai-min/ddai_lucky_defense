@@ -83,6 +83,15 @@ class PathComponent extends PositionComponent {
 
   ui.Path? _dashed;
   List<({Offset pos, double angle})> _arrows = const [];
+
+  /// 원점 기준 화살표 하나. 위치·각도는 캔버스 변환으로 준다.
+  Path? _arrowShape;
+
+  /// 알파만 매 프레임 바뀌므로 공용 스크래치 대신 이 한 벌을 계속 고쳐 쓴다
+  /// (루프 안에서 다른 그리기가 스크래치를 건드려도 안전하게).
+  final Paint _arrowPaint = Paint();
+
+  static const _dashLine = Color(0x1AFFFFFF);
   double _flow = 0;
 
   /// 레이아웃이 바뀌면 다시 계산한다.
@@ -108,6 +117,13 @@ class PathComponent extends PositionComponent {
       arrows.add((pos: Offset(p.x, p.y), angle: math.atan2(t.y, t.x)));
     }
     _arrows = arrows;
+
+    final arrowSize = game.layout.bandHeight * 0.16;
+    _arrowShape = Path()
+      ..moveTo(arrowSize, 0)
+      ..lineTo(-arrowSize * 0.7, arrowSize * 0.75)
+      ..lineTo(-arrowSize * 0.7, -arrowSize * 0.75)
+      ..close();
   }
 
   @override
@@ -123,60 +139,54 @@ class PathComponent extends PositionComponent {
 
     canvas.drawPath(
       uiPath,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w + 8
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xFF1B2136),
+      strokePaint(
+        const Color(0xFF1B2136),
+        w + 8,
+        cap: StrokeCap.round,
+        join: StrokeJoin.round,
+      ),
     );
     canvas.drawPath(
       uiPath,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xFF2C3654),
+      strokePaint(
+        const Color(0xFF2C3654),
+        w,
+        cap: StrokeCap.round,
+        join: StrokeJoin.round,
+      ),
     );
     canvas.drawPath(
       uiPath,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w * 0.62
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xFF333F63),
+      strokePaint(
+        const Color(0xFF333F63),
+        w * 0.62,
+        cap: StrokeCap.round,
+        join: StrokeJoin.round,
+      ),
     );
 
     final dashed = _dashed;
     if (dashed != null) {
       canvas.drawPath(
         dashed,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = Colors.white.withValues(alpha: 0.10),
+        strokePaint(_dashLine, 2),
       );
     }
 
     // 진행 방향 화살표
-    final arrowSize = layout.bandHeight * 0.16;
+    final arrow = _arrowShape;
     final pulse = 0.35 + 0.3 * math.sin(_flow * math.pi * 2);
-    final arrowPaint = Paint()
-      ..color = const Color(0xFF8FA3FF).withValues(alpha: pulse)
-      ..style = PaintingStyle.fill;
-    for (final a in _arrows) {
-      canvas.save();
-      canvas.translate(a.pos.dx, a.pos.dy);
-      canvas.rotate(a.angle);
-      final p = Path()
-        ..moveTo(arrowSize, 0)
-        ..lineTo(-arrowSize * 0.7, arrowSize * 0.75)
-        ..lineTo(-arrowSize * 0.7, -arrowSize * 0.75)
-        ..close();
-      canvas.drawPath(p, arrowPaint);
-      canvas.restore();
+    // 모양은 전부 같고 위치·각도만 다르다. 화살표마다 Path 를 새로 만들면
+    // 프레임마다 네이티브 객체가 수십 개씩 생긴다.
+    _arrowPaint.color = const Color(0xFF8FA3FF).withValues(alpha: pulse);
+    if (arrow != null) {
+      for (final a in _arrows) {
+        canvas.save();
+        canvas.translate(a.pos.dx, a.pos.dy);
+        canvas.rotate(a.angle);
+        canvas.drawPath(arrow, _arrowPaint);
+        canvas.restore();
+      }
     }
 
     _drawTerminal(canvas, layout.spawnPoint, '🌀', const Color(0xFF7C5CFF));
@@ -189,18 +199,13 @@ class PathComponent extends PositionComponent {
     canvas.drawCircle(
       c,
       r * 1.25,
-      Paint()
-        ..color = color.withValues(alpha: 0.22)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      blurPaint(color.withValues(alpha: 0.22), 8),
     );
-    canvas.drawCircle(c, r, Paint()..color = const Color(0xFF161C2E));
+    canvas.drawCircle(c, r, fillPaint(const Color(0xFF161C2E)));
     canvas.drawCircle(
       c,
       r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..color = color,
+      strokePaint(color, 2.5),
     );
     drawTextCentered(canvas, emoji, TextStyle(fontSize: r * 1.1), c);
   }

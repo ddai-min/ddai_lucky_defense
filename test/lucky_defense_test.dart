@@ -230,6 +230,55 @@ void main() {
     expect(game.state.autoSell, isFalse);
   });
 
+  testWidgets('놀고 있을 때는 렌더 루프를 세운다', (tester) async {
+    final game = await _boot(tester);
+
+    // 인트로: 그림이 멈춰 있으니 한 프레임 뒤 루프가 선다.
+    game.update(1 / 60);
+    expect(game.paused, isTrue, reason: '인트로에서는 다시 그릴 게 없다');
+
+    game.startGame();
+    await tester.pump();
+    expect(game.paused, isFalse, reason: '시작하면 다시 돈다');
+
+    game.togglePause();
+    await tester.pump();
+    game.update(1 / 60); // 대기 중인 추가·제거를 처리하는 마지막 한 프레임
+    expect(game.paused, isTrue);
+
+    game.togglePause();
+    await tester.pump();
+    expect(game.paused, isFalse);
+
+    // 판이 끝나도 선다.
+    game.state
+      ..phase = GamePhase.gameOver
+      ..notify();
+    await tester.pump();
+    game.update(1 / 60);
+    expect(game.paused, isTrue, reason: '결과 화면에서도 다시 그릴 게 없다');
+  });
+
+  testWidgets('멈추기 직전 프레임에 죽은 몬스터는 화면에 남지 않는다', (tester) async {
+    final game = await _boot(tester);
+    game.startGame();
+    for (var i = 0; i < 60 * 12; i++) {
+      game.update(1 / 60);
+    }
+    await tester.pump();
+    expect(game.enemies, isNotEmpty);
+
+    // 마지막 프레임에 죽이고 곧바로 멈춘다.
+    final victim = game.enemies.first;
+    victim.takeDamage(1e9);
+    game.togglePause();
+    await tester.pump();
+    game.update(1 / 60);
+
+    expect(game.paused, isTrue);
+    expect(victim.isMounted, isFalse, reason: '제거가 처리된 뒤에 루프가 선다');
+  });
+
   group('일시정지 화면', () {
     testWidgets('«계속» 은 판을 그대로 이어 간다', (tester) async {
       final game = await _boot(tester);
