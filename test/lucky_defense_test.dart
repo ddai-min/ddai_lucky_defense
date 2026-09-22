@@ -353,11 +353,16 @@ void main() {
       expect(Balance.clearWave(GameMode.hell), 150);
     });
 
-    test('초월 도박과 피해 보정이 그대로 붙는다', () {
+    test('초월 도박과 피해 보정이 붙되, 확률은 어려움보다 낮다', () {
       expect(GameMode.hell.hasGamble, isTrue);
       expect(
         Balance.mergeChance(Rarity.mythic.index, GameMode.hell),
-        Balance.hardMergeChance,
+        Balance.hellMergeChance,
+      );
+      expect(
+        Balance.hellMergeChance,
+        lessThan(Balance.hardMergeChance),
+        reason: '지옥이 어려움보다 잘 붙으면 순서가 뒤집힌다',
       );
       expect(
         Balance.rarityDamageBonus(Rarity.transcendent.index, GameMode.hell),
@@ -1155,9 +1160,15 @@ void main() {
         for (var r = 0; r < Rarity.values.length - 1; r++) {
           final chance = Balance.mergeChance(r, mode);
           final gamble = mode.hasGamble && r == Rarity.mythic.index;
+          // 도박 확률은 모드마다 다르다 — 지옥이 더 낮다.
+          final expected = !gamble
+              ? 1.0
+              : mode == GameMode.hell
+              ? Balance.hellMergeChance
+              : Balance.hardMergeChance;
           expect(
             chance,
-            gamble ? Balance.hardMergeChance : 1,
+            expected,
             reason: '${mode.label} · ${Rarity.values[r].label}',
           );
         }

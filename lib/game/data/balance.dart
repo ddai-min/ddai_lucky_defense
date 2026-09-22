@@ -74,6 +74,9 @@ class Balance {
   /// 어려움에서 신화 3개를 초월로 합성했을 때의 성공 확률.
   static const double hardMergeChance = 0.15;
 
+  /// 지옥의 같은 확률. 어려움보다 낮다.
+  static const double hellMergeChance = 0.10;
+
   /// 합성에 실패했을 때 사라지는 재료 수. 나머지는 자리에 남는다.
   static const int mergeFailLoss = 2;
 
@@ -86,8 +89,12 @@ class Balance {
   static const double hardTopTierDamage = 4;
 
   /// [fromRarity] 유닛 [mergeCount] 개를 합성할 때의 성공 확률. 1 이면 확정이다.
-  static double mergeChance(int fromRarity, GameMode mode) =>
-      mode.hasGamble && fromRarity == topTier - 1 ? hardMergeChance : 1;
+  static double mergeChance(int fromRarity, GameMode mode) {
+    if (!mode.hasGamble || fromRarity != topTier - 1) {
+      return 1;
+    }
+    return mode == GameMode.hell ? hellMergeChance : hardMergeChance;
+  }
 
   /// 등급별 피해 보정. 강화([atkBonus])와 곱해져 최종 피해가 된다.
   static double rarityDamageBonus(int rarity, GameMode mode) =>
@@ -254,7 +261,7 @@ class Balance {
   static const int _hellKnee = 50;
 
   /// [_hellKnee] 이후 웨이브마다 어려움 체력에 추가로 곱하는 값.
-  static const double _hellExtra = 1.020;
+  static const double _hellExtra = 1.030;
 
   /// 증가율이 웨이브마다 [taper] 배씩 꺾이는 체력 곡선.
   ///
