@@ -230,6 +230,112 @@ void main() {
     expect(game.state.autoSell, isFalse);
   });
 
+  group('일시정지 화면', () {
+    testWidgets('«계속» 은 판을 그대로 이어 간다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final state = game.state;
+      for (var i = 0; i < 60 * 12; i++) {
+        game.update(1 / 60);
+      }
+      await tester.pump();
+      final wave = state.wave;
+      final enemies = game.enemies.length;
+
+      game.togglePause();
+      await tester.pump();
+      await tester.tap(find.text('계속'));
+      await tester.pump();
+
+      expect(state.paused, isFalse);
+      expect(state.wave, wave, reason: '진행도가 그대로다');
+      expect(game.enemies.length, enemies);
+    });
+
+    testWidgets('«다시 도전» 은 두 번 눌러야 처음부터 시작한다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      final state = game.state;
+      for (var i = 0; i < 60 * 12; i++) {
+        game.update(1 / 60);
+      }
+      state.gold = 12345;
+      await tester.pump();
+      expect(state.wave, greaterThan(0));
+
+      game.togglePause();
+      await tester.pump();
+
+      // 한 번 눌렀을 때는 확인만 걸린다 — 판은 그대로다.
+      await tester.tap(find.text('다시 도전'));
+      await tester.pump();
+      expect(find.text('정말 다시?'), findsOneWidget);
+      expect(find.text('다시 도전'), findsNothing);
+      expect(state.wave, greaterThan(0), reason: '아직 안 지운다');
+      expect(state.gold, 12345);
+
+      // 두 번째에 실제로 1웨이브부터 다시 시작한다.
+      await tester.tap(find.text('정말 다시?'));
+      await tester.pump();
+      expect(state.wave, 0);
+      expect(state.gold, Balance.startGold);
+      expect(game.units, isEmpty);
+      expect(game.enemies, isEmpty);
+      expect(state.paused, isFalse, reason: '다시 시작하면 멈춤도 풀린다');
+      expect(state.started, isTrue, reason: '인트로로 돌아가지 않는다');
+    });
+
+    testWidgets('계속을 누르면 걸어 둔 확인이 풀린다', (tester) async {
+      final game = await _boot(tester);
+      game.startGame();
+      await tester.pump();
+
+      game.togglePause();
+      await tester.pump();
+      await tester.tap(find.text('다시 도전'));
+      await tester.pump();
+      expect(find.text('정말 다시?'), findsOneWidget);
+
+      await tester.tap(find.text('계속'));
+      await tester.pump();
+      game.togglePause();
+      await tester.pump();
+
+      expect(find.text('다시 도전'), findsOneWidget);
+      expect(find.text('정말 다시?'), findsNothing);
+    });
+
+    testWidgets('낮은 화면에서도 버튼이 넘치지 않는다', (tester) async {
+      tester.view
+        ..physicalSize = const Size(1600, 840) // 800x420, 필드가 아주 낮다
+        ..devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      late LuckyDefenseGame game;
+      await tester.pumpWidget(
+        LuckyDefenseApp(
+          gameFactory: () {
+            game = LuckyDefenseGame(
+              state: GameState(),
+              random: math.Random(1),
+              records: MemoryRecordStore(),
+              leaderboard: MemoryLeaderboard(isAvailable: false),
+            );
+            return game;
+          },
+        ),
+      );
+      await tester.pump();
+      game.startGame();
+      game.togglePause();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('계속'), findsOneWidget);
+      expect(find.text('다시 도전'), findsOneWidget);
+    });
+  });
+
   testWidgets('일시정지 버튼을 누르면 게임이 멈추고 다시 누르면 이어진다', (tester) async {
     final game = await _boot(tester);
     game.startGame();

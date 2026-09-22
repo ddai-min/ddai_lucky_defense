@@ -294,49 +294,115 @@ class _PauseButton extends StatelessWidget {
   }
 }
 
-/// 멈춘 동안 게임 화면을 덮는 안내. 아무 데나 누르면 계속된다.
-class _PauseOverlay extends StatelessWidget {
+/// 멈춘 동안 게임 화면을 덮는 안내.
+///
+/// «계속» 과 «다시 도전» 을 띄운다. 배경을 눌러도 계속된다 — 멈춘 김에 판을
+/// 둘러보다 아무 데나 누르는 게 자연스러운 동작이라 그대로 뒀다.
+class _PauseOverlay extends StatefulWidget {
   const _PauseOverlay({required this.game});
 
   final LuckyDefenseGame game;
 
   @override
+  State<_PauseOverlay> createState() => _PauseOverlayState();
+}
+
+class _PauseOverlayState extends State<_PauseOverlay> {
+  /// «다시 도전» 을 한 번 눌러 확인을 기다리는 중인지.
+  ///
+  /// 되돌릴 수 없는 버튼이라 두 번 눌러야 듣는다. 계속을 누르거나 배경을 눌러
+  /// 오버레이가 사라지면 State 도 같이 버려지므로 저절로 풀린다.
+  bool _confirm = false;
+
+  @override
   Widget build(BuildContext context) {
+    final game = widget.game;
     return GestureDetector(
       onTap: game.togglePause,
       behavior: HitTestBehavior.opaque,
       child: ColoredBox(
         color: Colors.black.withValues(alpha: 0.62),
-        child: const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.pause_circle_filled_rounded,
-                size: 52,
-                color: GameColors.text,
-              ),
-              SizedBox(height: 10),
-              Text(
-                '일시정지',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // 가로로 눕힌 창처럼 필드가 낮을 때는 큰 아이콘을 뺀다.
+            final tight = constraints.maxHeight < 210;
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!tight) ...[
+                      const Icon(
+                        Icons.pause_circle_filled_rounded,
+                        size: 52,
+                        color: GameColors.text,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    const Text(
+                      '일시정지',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _confirm
+                          ? '한 번 더 누르면 1웨이브부터 다시 합니다'
+                          : '화면을 누르면 계속합니다',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _confirm ? GameColors.life : GameColors.sub,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: tight ? 12 : 18),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 300),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ActionButton(
+                              icon: '▶️',
+                              label: '계속',
+                              color: GameColors.green,
+                              filled: true,
+                              height: 48,
+                              onTap: game.togglePause,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ActionButton(
+                              icon: _confirm ? '⚠️' : '🔄',
+                              label: _confirm ? '정말 다시?' : '다시 도전',
+                              sub: _confirm
+                                  ? '지금 판은 사라집니다'
+                                  : game.state.mode.label,
+                              color: _confirm
+                                  ? GameColors.life
+                                  : GameColors.accent,
+                              filled: _confirm,
+                              height: 48,
+                              // 한 판을 통째로 날리는 버튼이라 두 번 받는다.
+                              onTap: () => _confirm
+                                  ? game.restart()
+                                  : setState(() => _confirm = true),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(height: 4),
-              Text(
-                '화면을 누르면 계속합니다',
-                style: TextStyle(
-                  color: GameColors.sub,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
